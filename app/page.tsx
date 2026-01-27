@@ -353,7 +353,7 @@ export default function PasswordStudy() {
       return
     }
 
-    let html = ""
+    let html = '<span class="grouped-content">'
     for (let i = 0; i < value.length; i++) {
       html += '<span class="char">•</span>'
       if ((i + 1) % 4 === 0 && i < value.length - 1) {
@@ -361,6 +361,7 @@ export default function PasswordStudy() {
       }
     }
     html += '<span class="cursor"></span>'
+    html += '</span>'
     display.innerHTML = html
   }
 
@@ -704,18 +705,25 @@ export default function PasswordStudy() {
                         />
                         <div
                           id="grouped-display"
-                          className="absolute inset-0 px-5 py-4 font-mono text-white pointer-events-none flex items-center overflow-hidden"
+                          className="absolute inset-0 px-5 py-4 font-mono text-white pointer-events-none flex items-center overflow-x-auto whitespace-nowrap"
                         >
                           <span className="placeholder text-zinc-600">Passwort...</span>
                         </div>
                         <style jsx>{`
+                          .grouped-content {
+                            display: inline-flex;
+                            align-items: center;
+                            white-space: nowrap;
+                          }
                           .char {
-                            display: inline;
+                            display: inline-block;
                             font-size: 1.5rem;
+                            flex-shrink: 0;
                           }
                           .space {
                             display: inline-block;
                             width: 0.75em;
+                            flex-shrink: 0;
                           }
                           .cursor {
                             display: inline-block;
@@ -725,6 +733,7 @@ export default function PasswordStudy() {
                             margin-left: 2px;
                             animation: blink 1s step-end infinite;
                             vertical-align: middle;
+                            flex-shrink: 0;
                           }
                           @keyframes blink {
                             0%,
@@ -737,6 +746,13 @@ export default function PasswordStudy() {
                           }
                           .placeholder {
                             color: #52525b;
+                          }
+                          #grouped-display::-webkit-scrollbar {
+                            display: none;
+                          }
+                          #grouped-display {
+                            -ms-overflow-style: none;
+                            scrollbar-width: none;
                           }
                         `}</style>
                       </div>

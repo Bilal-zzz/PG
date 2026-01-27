@@ -349,7 +349,7 @@ export default function PasswordStudy() {
     if (!display) return
 
     if (value.length === 0) {
-      display.innerHTML = '<span class="placeholder">Geben Sie Ihr Passwort ein...</span>'
+      display.innerHTML = '<span class="placeholder text-zinc-600">...</span>'
       return
     }
 
@@ -459,7 +459,8 @@ export default function PasswordStudy() {
       (r) => r.visibility !== null && r.error_recovery !== null && r.security !== null && r.distraction !== null
     )
 
-  // Common input classes with overflow guarantee - width reduced to 140px, larger font size (text-2xl), bigger padding
+  // Common input classes with overflow guarantee
+  // w-[140px] ist fix für alle Test-Felder
   const inputBaseClasses =
     "w-[140px] bg-zinc-900/80 border border-zinc-700/50 rounded-xl px-5 py-4 font-mono text-2xl text-white placeholder:text-zinc-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 transition-all duration-200"
 
@@ -586,15 +587,18 @@ export default function PasswordStudy() {
                   </label>
                   <div className="flex justify-center">
                     <input
-                      type="password"
-                      id="register-password"
-                      name="new-password-registration"
+                      /* Type text mit security disc um Autocomplete zu verhindern */
+                      type="text"
+                      id="register-input-field"
+                      name="study_reg_field_xy"
+                      style={{ WebkitTextSecurity: 'disc' }}
                       value={registerValue}
                       onChange={(e) => setRegisterValue(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && registerValue.length > 15 && registerPassword()}
+                      /* Registration ist breit (!w-full), Test-Felder sind eng */
                       className={inputBaseClasses + " !w-full !max-w-md"}
                       placeholder="Mindestens 16 Zeichen eingeben..."
-                      autoComplete="new-password"
+                      autoComplete="off"
                       autoCorrect="off"
                       autoCapitalize="off"
                       spellCheck="false"
@@ -657,32 +661,34 @@ export default function PasswordStudy() {
                 </div>
 
                 <div className="space-y-4">
+                  {/* LABEL STATT PLACEHOLDER: Löst das Overflow Problem der Anweisung */}
                   <label
                     htmlFor="trial-input"
-                    className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider text-center"
+                    className="block text-sm font-medium text-zinc-400 text-center mb-2"
                   >
-                    Passwort
+                    Passwort hier eingeben:
                   </label>
 
                   <div className="flex justify-center items-center">
                     {currentMethod.id === "STANDARD" && (
                       <input
                         ref={trialInputRef}
-                        type="password"
-                        id="trial-input"
-                        name="trial-password-standard"
+                        /* TRICK: type text + webkit security disc verhindert "Passwort speichern" Dialoge */
+                        type="text"
+                        style={{ WebkitTextSecurity: 'disc' }}
+                        id="trial-input-standard"
+                        name="study_field_std_1"
                         value={trialValue}
                         onChange={handleTrialChange}
                         onKeyDown={handleTrialKeydown}
                         className={inputBaseClasses}
-                        placeholder="Passwort..."
-                        autoComplete="new-password"
+                        placeholder="..."
+                        autoComplete="off"
                         autoCorrect="off"
                         autoCapitalize="off"
                         spellCheck="false"
                         data-lpignore="true"
                         data-form-type="other"
-                        aria-label="Passwort eingeben"
                       />
                     )}
 
@@ -691,23 +697,22 @@ export default function PasswordStudy() {
                         <input
                           ref={trialInputRef}
                           type="text"
-                          id="trial-input"
-                          name="trial-password-grouped"
+                          id="trial-input-grouped"
+                          name="study_field_grp_2"
                           onKeyDown={handleTrialKeydown}
                           className={`${inputBaseClasses} text-transparent caret-transparent selection:bg-transparent`}
-                          autoComplete="new-password"
+                          autoComplete="off"
                           autoCorrect="off"
                           autoCapitalize="off"
                           spellCheck="false"
                           data-lpignore="true"
                           data-form-type="other"
-                          aria-label="Gruppiertes Passwort eingeben"
                         />
                         <div
                           id="grouped-display"
                           className="absolute inset-0 px-5 py-4 font-mono text-white pointer-events-none flex items-center overflow-x-auto whitespace-nowrap"
                         >
-                          <span className="placeholder text-zinc-600">Passwort...</span>
+                          <span className="placeholder text-zinc-600">...</span>
                         </div>
                         <style jsx>{`
                           .grouped-content {
@@ -761,20 +766,19 @@ export default function PasswordStudy() {
                       <input
                         ref={trialInputRef}
                         type="text"
-                        id="trial-input"
-                        name="trial-password-lastchar"
+                        id="trial-input-last"
+                        name="study_field_last_3"
                         value={lastCharDisplay || trialValue}
                         onChange={handleTrialChange}
                         onKeyDown={handleTrialKeydown}
                         className={inputBaseClasses}
-                        placeholder="Passwort..."
-                        autoComplete="new-password"
+                        placeholder="..."
+                        autoComplete="off"
                         autoCorrect="off"
                         autoCapitalize="off"
                         spellCheck="false"
                         data-lpignore="true"
                         data-form-type="other"
-                        aria-label="Passwort mit letztem sichtbarem Zeichen eingeben"
                         style={{ 
                           caretColor: 'white',
                           userSelect: 'text',
@@ -788,21 +792,22 @@ export default function PasswordStudy() {
                         <div className="flex items-center justify-center gap-3">
                           <input
                             ref={trialInputRef}
-                            type="password"
-                            id="trial-input"
-                            name="trial-password-chroma"
+                            /* TRICK: type text + webkit security disc */
+                            type="text"
+                            style={{ WebkitTextSecurity: 'disc' }}
+                            id="trial-input-chroma"
+                            name="study_field_chr_4"
                             value={trialValue}
                             onChange={handleTrialChange}
                             onKeyDown={handleTrialKeydown}
                             className={inputBaseClasses}
-                            placeholder="Passwort..."
-                            autoComplete="new-password"
+                            placeholder="..."
+                            autoComplete="off"
                             autoCorrect="off"
                             autoCapitalize="off"
                             spellCheck="false"
                             data-lpignore="true"
                             data-form-type="other"
-                            aria-label="Passwort mit Farbfeedback eingeben"
                           />
                           <div className="flex flex-col gap-1" aria-label="Aktuelle Farbcodes">
                             {currentColors.map((color, i) => (

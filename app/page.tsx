@@ -445,9 +445,9 @@ export default function PasswordStudy() {
       (r) => r.visibility !== null && r.error_recovery !== null && r.security !== null && r.distraction !== null
     )
 
-  // Common input classes with overflow guarantee - max-w set to overflow at ~15 characters
+  // Common input classes with overflow guarantee - max-w set to overflow at ~10 characters
   const inputBaseClasses =
-    "w-full max-w-[160px] sm:max-w-[180px] bg-zinc-900/80 border border-zinc-700/50 rounded-xl px-4 py-3.5 font-mono text-base text-white placeholder:text-zinc-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 transition-all duration-200"
+    "w-full max-w-[120px] sm:max-w-[130px] bg-zinc-900/80 border border-zinc-700/50 rounded-xl px-4 py-3.5 font-mono text-base text-white placeholder:text-zinc-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 transition-all duration-200"
 
   return (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4 sm:p-6">
@@ -727,7 +727,7 @@ export default function PasswordStudy() {
                   )}
 
                   {currentMethod.id === "LASTCHAR" && (
-                    <div className="relative">
+                    <div className="relative w-full max-w-[120px] sm:max-w-[130px]">
                       <input
                         ref={trialInputRef}
                         type="text"
@@ -736,7 +736,7 @@ export default function PasswordStudy() {
                         value={trialValue}
                         onChange={handleTrialChange}
                         onKeyDown={handleTrialKeydown}
-                        className={`${inputBaseClasses} text-transparent caret-transparent selection:bg-transparent`}
+                        className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-text"
                         autoComplete="new-password"
                         autoCorrect="off"
                         autoCapitalize="off"
@@ -745,8 +745,8 @@ export default function PasswordStudy() {
                         data-form-type="other"
                         aria-label="Passwort mit letztem sichtbarem Zeichen eingeben"
                       />
-                      <div className="absolute inset-0 px-4 py-3.5 font-mono text-white pointer-events-none flex items-center tracking-wider overflow-hidden">
-                        {lastCharDisplay || <span className="text-zinc-600">Geben Sie Ihr Passwort ein...</span>}
+                      <div className="w-full bg-zinc-900/80 border border-zinc-700/50 rounded-xl px-4 py-3.5 font-mono text-base text-white tracking-wider overflow-x-auto whitespace-nowrap min-h-[52px] flex items-center">
+                        {lastCharDisplay || <span className="text-zinc-600">Passwort...</span>}
                       </div>
                     </div>
                   )}

@@ -566,30 +566,32 @@ export default function PasswordStudy() {
                 <div className="space-y-3">
                   <label
                     htmlFor="register-password"
-                    className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider"
+                    className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider text-center"
                   >
                     Ihr Test-Passwort
                   </label>
-                  <input
-                    type="password"
-                    id="register-password"
-                    name="new-password-registration"
-                    value={registerValue}
-                    onChange={(e) => setRegisterValue(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && registerValue.length > 15 && registerPassword()}
-                    className={inputBaseClasses + " !max-w-full"}
-                    placeholder="Mindestens 16 Zeichen eingeben..."
-                    autoComplete="new-password"
-                    autoCorrect="off"
-                    autoCapitalize="off"
-                    spellCheck="false"
-                    data-lpignore="true"
-                    data-form-type="other"
-                    aria-describedby="password-length"
-                  />
+                  <div className="flex justify-center">
+                    <input
+                      type="password"
+                      id="register-password"
+                      name="new-password-registration"
+                      value={registerValue}
+                      onChange={(e) => setRegisterValue(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && registerValue.length > 15 && registerPassword()}
+                      className={inputBaseClasses + " !w-full !max-w-md"}
+                      placeholder="Mindestens 16 Zeichen eingeben..."
+                      autoComplete="new-password"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck="false"
+                      data-lpignore="true"
+                      data-form-type="other"
+                      aria-describedby="password-length"
+                    />
+                  </div>
                   <div
                     id="password-length"
-                    className={`text-sm font-medium transition-colors ${
+                    className={`text-sm font-medium transition-colors text-center ${
                       registerValue.length > 15 ? "text-emerald-400" : "text-zinc-500"
                     }`}
                   >
@@ -648,7 +650,7 @@ export default function PasswordStudy() {
                     Passwort
                   </label>
 
-                  <div className="flex justify-center">
+                  <div className="flex justify-center items-center">
                     {currentMethod.id === "STANDARD" && (
                       <input
                         ref={trialInputRef}
@@ -752,7 +754,7 @@ export default function PasswordStudy() {
                     )}
 
                     {currentMethod.id === "CHROMA" && (
-                      <div className="space-y-4">
+                      <div className="space-y-4 w-full flex flex-col items-center">
                         <div className="flex items-center justify-center gap-3">
                           <input
                             ref={trialInputRef}

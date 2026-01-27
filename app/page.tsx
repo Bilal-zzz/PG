@@ -363,7 +363,12 @@ export default function PasswordStudy() {
     html += '<span class="cursor"></span>'
     html += '</span>'
     display.innerHTML = html
+
+    requestAnimationFrame(() => {
+      display.scrollLeft = display.scrollWidth
+    })
   }
+  
 
   // Submit trial
   const submitTrial = () => {

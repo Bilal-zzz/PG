@@ -640,175 +640,177 @@ export default function PasswordStudy() {
                   <p className="text-zinc-400 text-sm leading-relaxed">{currentMethod.description}</p>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <label
                     htmlFor="trial-input"
-                    className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider"
+                    className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider text-center"
                   >
                     Passwort
                   </label>
 
-                  {currentMethod.id === "STANDARD" && (
-                    <input
-                      ref={trialInputRef}
-                      type="password"
-                      id="trial-input"
-                      name="trial-password-standard"
-                      value={trialValue}
-                      onChange={handleTrialChange}
-                      onKeyDown={handleTrialKeydown}
-                      className={inputBaseClasses}
-                      placeholder="Geben Sie Ihr Passwort ein..."
-                      autoComplete="new-password"
-                      autoCorrect="off"
-                      autoCapitalize="off"
-                      spellCheck="false"
-                      data-lpignore="true"
-                      data-form-type="other"
-                      aria-label="Passwort eingeben"
-                    />
-                  )}
-
-                  {currentMethod.id === "GROUPED" && (
-                    <div className="relative">
+                  <div className="flex justify-center">
+                    {currentMethod.id === "STANDARD" && (
                       <input
                         ref={trialInputRef}
-                        type="text"
+                        type="password"
                         id="trial-input"
-                        name="trial-password-grouped"
-                        onKeyDown={handleTrialKeydown}
-                        className={`${inputBaseClasses} text-transparent caret-transparent selection:bg-transparent`}
-                        autoComplete="new-password"
-                        autoCorrect="off"
-                        autoCapitalize="off"
-                        spellCheck="false"
-                        data-lpignore="true"
-                        data-form-type="other"
-                        aria-label="Gruppiertes Passwort eingeben"
-                      />
-                      <div
-                        id="grouped-display"
-                        className="absolute inset-0 px-4 py-3.5 font-mono text-white pointer-events-none flex items-center overflow-hidden"
-                      >
-                        <span className="placeholder text-zinc-600">Geben Sie Ihr Passwort ein...</span>
-                      </div>
-                      <style jsx>{`
-                        .char {
-                          display: inline;
-                          font-size: 1rem;
-                        }
-                        .space {
-                          display: inline-block;
-                          width: 0.75em;
-                        }
-                        .cursor {
-                          display: inline-block;
-                          width: 2px;
-                          height: 1.25em;
-                          background: linear-gradient(to bottom, #06b6d4, #3b82f6);
-                          margin-left: 2px;
-                          animation: blink 1s step-end infinite;
-                          vertical-align: middle;
-                        }
-                        @keyframes blink {
-                          0%,
-                          100% {
-                            opacity: 1;
-                          }
-                          50% {
-                            opacity: 0;
-                          }
-                        }
-                        .placeholder {
-                          color: #52525b;
-                        }
-                      `}</style>
-                    </div>
-                  )}
-
-                  {currentMethod.id === "LASTCHAR" && (
-                    <div className="relative w-full max-w-[120px] sm:max-w-[130px]">
-                      <input
-                        ref={trialInputRef}
-                        type="text"
-                        id="trial-input"
-                        name="trial-password-lastchar"
+                        name="trial-password-standard"
                         value={trialValue}
                         onChange={handleTrialChange}
                         onKeyDown={handleTrialKeydown}
-                        className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-text"
+                        className={inputBaseClasses}
+                        placeholder="Passwort..."
                         autoComplete="new-password"
                         autoCorrect="off"
                         autoCapitalize="off"
                         spellCheck="false"
                         data-lpignore="true"
                         data-form-type="other"
-                        aria-label="Passwort mit letztem sichtbarem Zeichen eingeben"
+                        aria-label="Passwort eingeben"
                       />
-                      <div className="w-full bg-zinc-900/80 border border-zinc-700/50 rounded-xl px-4 py-3.5 font-mono text-base text-white tracking-wider overflow-x-auto whitespace-nowrap min-h-[52px] flex items-center">
-                        {lastCharDisplay || <span className="text-zinc-600">Passwort...</span>}
-                      </div>
-                    </div>
-                  )}
+                    )}
 
-                  {currentMethod.id === "CHROMA" && (
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-4">
+                    {currentMethod.id === "GROUPED" && (
+                      <div className="relative">
                         <input
                           ref={trialInputRef}
-                          type="password"
+                          type="text"
                           id="trial-input"
-                          name="trial-password-chroma"
-                          value={trialValue}
-                          onChange={handleTrialChange}
+                          name="trial-password-grouped"
                           onKeyDown={handleTrialKeydown}
-                          className={`${inputBaseClasses} flex-1`}
-                          placeholder="Geben Sie Ihr Passwort ein..."
+                          className={`${inputBaseClasses} text-transparent caret-transparent selection:bg-transparent`}
                           autoComplete="new-password"
                           autoCorrect="off"
                           autoCapitalize="off"
                           spellCheck="false"
                           data-lpignore="true"
                           data-form-type="other"
-                          aria-label="Passwort mit Farbfeedback eingeben"
+                          aria-label="Gruppiertes Passwort eingeben"
                         />
-                        <div className="flex flex-col gap-1.5" aria-label="Aktuelle Farbcodes">
-                          {currentColors.map((color, i) => (
-                            <div
-                              key={i}
-                              className="w-12 h-3 rounded-full transition-all duration-300 ease-out shadow-lg"
-                              style={{
-                                backgroundColor: color,
-                                boxShadow: `0 0 12px ${color}40`,
-                              }}
-                            />
-                          ))}
+                        <div
+                          id="grouped-display"
+                          className="absolute inset-0 px-4 py-3.5 font-mono text-white pointer-events-none flex items-center overflow-hidden"
+                        >
+                          <span className="placeholder text-zinc-600">Passwort...</span>
+                        </div>
+                        <style jsx>{`
+                          .char {
+                            display: inline;
+                            font-size: 1rem;
+                          }
+                          .space {
+                            display: inline-block;
+                            width: 0.75em;
+                          }
+                          .cursor {
+                            display: inline-block;
+                            width: 2px;
+                            height: 1.25em;
+                            background: linear-gradient(to bottom, #06b6d4, #3b82f6);
+                            margin-left: 2px;
+                            animation: blink 1s step-end infinite;
+                            vertical-align: middle;
+                          }
+                          @keyframes blink {
+                            0%,
+                            100% {
+                              opacity: 1;
+                            }
+                            50% {
+                              opacity: 0;
+                            }
+                          }
+                          .placeholder {
+                            color: #52525b;
+                          }
+                        `}</style>
+                      </div>
+                    )}
+
+                    {currentMethod.id === "LASTCHAR" && (
+                      <div className="relative w-full max-w-[120px] sm:max-w-[130px]">
+                        <input
+                          ref={trialInputRef}
+                          type="text"
+                          id="trial-input"
+                          name="trial-password-lastchar"
+                          value={trialValue}
+                          onChange={handleTrialChange}
+                          onKeyDown={handleTrialKeydown}
+                          className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-text"
+                          autoComplete="new-password"
+                          autoCorrect="off"
+                          autoCapitalize="off"
+                          spellCheck="false"
+                          data-lpignore="true"
+                          data-form-type="other"
+                          aria-label="Passwort mit letztem sichtbarem Zeichen eingeben"
+                        />
+                        <div className="w-full bg-zinc-900/80 border border-zinc-700/50 rounded-xl px-4 py-3.5 font-mono text-base text-white tracking-wider overflow-x-auto whitespace-nowrap min-h-[52px] flex items-center">
+                          {lastCharDisplay || <span className="text-zinc-600">Passwort...</span>}
                         </div>
                       </div>
-                      <div className="flex items-center gap-4 justify-end">
-                        <span className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Ziel</span>
-                        <div className="flex flex-col gap-1.5" aria-label="Ziel-Farbcodes">
-                          {targetColors.map((color, i) => (
-                            <div
-                              key={i}
-                              className="w-12 h-3 rounded-full border-2 border-zinc-600/50"
-                              style={{ backgroundColor: color }}
-                            />
-                          ))}
+                    )}
+
+                    {currentMethod.id === "CHROMA" && (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-center gap-3">
+                          <input
+                            ref={trialInputRef}
+                            type="password"
+                            id="trial-input"
+                            name="trial-password-chroma"
+                            value={trialValue}
+                            onChange={handleTrialChange}
+                            onKeyDown={handleTrialKeydown}
+                            className={inputBaseClasses}
+                            placeholder="Passwort..."
+                            autoComplete="new-password"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck="false"
+                            data-lpignore="true"
+                            data-form-type="other"
+                            aria-label="Passwort mit Farbfeedback eingeben"
+                          />
+                          <div className="flex flex-col gap-1" aria-label="Aktuelle Farbcodes">
+                            {currentColors.map((color, i) => (
+                              <div
+                                key={i}
+                                className="w-8 h-2.5 rounded-full transition-all duration-300 ease-out shadow-lg"
+                                style={{
+                                  backgroundColor: color,
+                                  boxShadow: `0 0 10px ${color}50`,
+                                }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 justify-center">
+                          <span className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Ziel:</span>
+                          <div className="flex gap-2" aria-label="Ziel-Farbcodes">
+                            {targetColors.map((color, i) => (
+                              <div
+                                key={i}
+                                className="w-8 h-2.5 rounded-full border border-zinc-600/50"
+                                style={{ backgroundColor: color }}
+                              />
+                            ))}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
+
+                  <p className="text-xs text-zinc-500 text-center">Drücken Sie Enter oder klicken Sie auf Absenden</p>
+
+                  <button
+                    onClick={submitTrial}
+                    className="w-full min-h-[48px] bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/30 hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
+                  >
+                    Absenden
+                  </button>
                 </div>
-
-                <p className="text-xs text-zinc-500 text-center">Drücken Sie Enter oder klicken Sie auf Absenden</p>
-
-                <button
-                  onClick={submitTrial}
-                  className="w-full min-h-[48px] bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/30 hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
-                >
-                  Absenden
-                </button>
               </AnimatedScreen>
             )}
 

@@ -293,40 +293,53 @@ export default function PasswordStudy() {
   }
 
   const handleTrialChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
-    setTrialValue(value)
-
-    if (value.length > targetPassword.length) {
-      setOverflowDetected(true)
-    }
-
     if (currentMethod?.id === "LASTCHAR") {
+      const displayValue = e.target.value
+      
       // Clear any existing timeout
       if (lastCharTimeout) clearTimeout(lastCharTimeout)
       
-      if (value.length === 0) {
-        setLastCharDisplay("")
-      } else {
-        // Check if this was a deletion (value got shorter)
-        const wasDeleted = value.length < prevTrialValueRef.current.length
+      // Determine if we're adding or removing characters
+      const prevLength = prevTrialValueRef.current.length
+      const currentLength = displayValue.length
+      
+      if (currentLength < prevLength) {
+        // Deletion - remove from actual value
+        const newValue = trialValue.slice(0, -1)
+        setTrialValue(newValue)
+        setLastCharDisplay("•".repeat(newValue.length))
+      } else if (currentLength > prevLength) {
+        // Addition - get the new character and add to actual value
+        const newChar = displayValue.slice(-1)
+        const newValue = trialValue + newChar
+        setTrialValue(newValue)
         
-        if (wasDeleted) {
-          // On deletion, just show all dots (no reveal)
-          setLastCharDisplay("•".repeat(value.length))
-        } else {
-          // On addition, show last character briefly
-          const masked = "•".repeat(value.length - 1) + value.slice(-1)
-          setLastCharDisplay(masked)
+        // Show last character briefly
+        const masked = "•".repeat(newValue.length - 1) + newChar
+        setLastCharDisplay(masked)
 
-          const timeout = setTimeout(() => {
-            setLastCharDisplay("•".repeat(value.length))
-          }, 1000)
-          setLastCharTimeout(timeout)
-        }
+        const timeout = setTimeout(() => {
+          setLastCharDisplay("•".repeat(newValue.length))
+        }, 1000)
+        setLastCharTimeout(timeout)
       }
       
-      // Update the ref for next comparison
-      prevTrialValueRef.current = value
+      prevTrialValueRef.current = displayValue
+      
+      if (trialValue.length > targetPassword.length) {
+        setOverflowDetected(true)
+      }
+    } else if (currentMethod?.id === "GROUPED") {
+      // GROUPED is handled via keydown, not onChange
+      return
+    } else {
+      // For STANDARD and CHROMA methods
+      const value = e.target.value
+      setTrialValue(value)
+      
+      if (value.length > targetPassword.length) {
+        setOverflowDetected(true)
+      }
     }
   }
 
@@ -445,9 +458,9 @@ export default function PasswordStudy() {
       (r) => r.visibility !== null && r.error_recovery !== null && r.security !== null && r.distraction !== null
     )
 
-  // Common input classes with overflow guarantee - width reduced to 120px to overflow at ~10 characters
+  // Common input classes with overflow guarantee - width reduced to 140px, larger font size (text-2xl), bigger padding
   const inputBaseClasses =
-    "w-[120px] bg-zinc-900/80 border border-zinc-700/50 rounded-xl px-4 py-3.5 font-mono text-xl text-white placeholder:text-zinc-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 transition-all duration-200"
+    "w-[140px] bg-zinc-900/80 border border-zinc-700/50 rounded-xl px-5 py-4 font-mono text-2xl text-white placeholder:text-zinc-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 transition-all duration-200"
 
   return (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4 sm:p-6">
@@ -691,14 +704,14 @@ export default function PasswordStudy() {
                         />
                         <div
                           id="grouped-display"
-                          className="absolute inset-0 px-4 py-3.5 font-mono text-white pointer-events-none flex items-center overflow-hidden"
+                          className="absolute inset-0 px-5 py-4 font-mono text-white pointer-events-none flex items-center overflow-hidden"
                         >
                           <span className="placeholder text-zinc-600">Passwort...</span>
                         </div>
                         <style jsx>{`
                           .char {
                             display: inline;
-                            font-size: 1rem;
+                            font-size: 1.5rem;
                           }
                           .space {
                             display: inline-block;
@@ -707,7 +720,7 @@ export default function PasswordStudy() {
                           .cursor {
                             display: inline-block;
                             width: 2px;
-                            height: 1.25em;
+                            height: 1.5em;
                             background: linear-gradient(to bottom, #06b6d4, #3b82f6);
                             margin-left: 2px;
                             animation: blink 1s step-end infinite;
@@ -729,28 +742,29 @@ export default function PasswordStudy() {
                       </div>
                     )}
                     {currentMethod.id === "LASTCHAR" && (
-                      <div className="relative w-[120px]">
-                        <input
-                          ref={trialInputRef}
-                          type="text"
-                          id="trial-input"
-                          name="trial-password-lastchar"
-                          value={trialValue}
-                          onChange={handleTrialChange}
-                          onKeyDown={handleTrialKeydown}
-                          className="absolute inset-0 w-full h-full z-10 cursor-text bg-transparent text-transparent caret-white selection:bg-cyan-500/50 font-mono text-xl px-4 py-3.5"
-                          autoComplete="new-password"
-                          autoCorrect="off"
-                          autoCapitalize="off"
-                          spellCheck="false"
-                          data-lpignore="true"
-                          data-form-type="other"
-                          aria-label="Passwort mit letztem sichtbarem Zeichen eingeben"
-                        />
-                        <div className="w-full bg-zinc-900/80 border border-zinc-700/50 rounded-xl px-4 py-3.5 font-mono text-xl text-white tracking-wider overflow-x-auto whitespace-nowrap min-h-[52px] flex items-center no-scrollbar">
-                          {lastCharDisplay || <span className="text-zinc-600 text-base">Passwort...</span>}
-                        </div>
-                      </div>
+                      <input
+                        ref={trialInputRef}
+                        type="text"
+                        id="trial-input"
+                        name="trial-password-lastchar"
+                        value={lastCharDisplay || trialValue}
+                        onChange={handleTrialChange}
+                        onKeyDown={handleTrialKeydown}
+                        className={inputBaseClasses}
+                        placeholder="Passwort..."
+                        autoComplete="new-password"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck="false"
+                        data-lpignore="true"
+                        data-form-type="other"
+                        aria-label="Passwort mit letztem sichtbarem Zeichen eingeben"
+                        style={{ 
+                          caretColor: 'white',
+                          userSelect: 'text',
+                          WebkitUserSelect: 'text'
+                        }}
+                      />
                     )}
 
                     {currentMethod.id === "CHROMA" && (

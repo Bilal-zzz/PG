@@ -445,10 +445,9 @@ export default function PasswordStudy() {
       (r) => r.visibility !== null && r.error_recovery !== null && r.security !== null && r.distraction !== null
     )
 
-  // Common input classes with overflow guarantee - max-w set to overflow at ~10 characters
-  // Suche diese Konstante fast ganz unten im Code
+  // Common input classes with overflow guarantee - width reduced to 120px to overflow at ~10 characters
   const inputBaseClasses =
-    "w-[160px] bg-zinc-900/80 border border-zinc-700/50 rounded-xl px-4 py-3.5 font-mono text-xl text-white placeholder:text-zinc-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 transition-all duration-200"
+    "w-[120px] bg-zinc-900/80 border border-zinc-700/50 rounded-xl px-4 py-3.5 font-mono text-xl text-white placeholder:text-zinc-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 transition-all duration-200"
 
   return (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4 sm:p-6">
@@ -728,8 +727,7 @@ export default function PasswordStudy() {
                       </div>
                     )}
                     {currentMethod.id === "LASTCHAR" && (
-                     // 1. Breite auf 140px reduziert (damit Overflow früher kommt)
-                      <div className="relative w-[140px]">
+                      <div className="relative w-[120px]">
                         <input
                           ref={trialInputRef}
                           type="text"
@@ -738,12 +736,6 @@ export default function PasswordStudy() {
                           value={trialValue}
                           onChange={handleTrialChange}
                           onKeyDown={handleTrialKeydown}
-                          // 2. WICHTIGE ÄNDERUNG FÜR MARKIERUNG:
-                          // - opacity-0 entfernt
-                          // - text-transparent: Text ist unsichtbar, aber existiert
-                          // - bg-transparent: Hintergrund durchsichtig
-                          // - selection:bg-cyan-500/50: Macht die Markierung blau/cyan sichtbar
-                          // - caret-white: Der Cursor bleibt sichtbar (optional, kann auch transparent sein)
                           className="absolute inset-0 w-full h-full z-10 cursor-text bg-transparent text-transparent caret-white selection:bg-cyan-500/50 font-mono text-xl px-4 py-3.5"
                           autoComplete="new-password"
                           autoCorrect="off"
@@ -753,7 +745,6 @@ export default function PasswordStudy() {
                           data-form-type="other"
                           aria-label="Passwort mit letztem sichtbarem Zeichen eingeben"
                         />
-                        {/* 3. Visuelles Feld (Die Punkte): Muss exakt dieselben Maße/Padding haben wie das Input darüber */}
                         <div className="w-full bg-zinc-900/80 border border-zinc-700/50 rounded-xl px-4 py-3.5 font-mono text-xl text-white tracking-wider overflow-x-auto whitespace-nowrap min-h-[52px] flex items-center no-scrollbar">
                           {lastCharDisplay || <span className="text-zinc-600 text-base">Passwort...</span>}
                         </div>

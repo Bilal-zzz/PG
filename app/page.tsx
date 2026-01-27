@@ -728,8 +728,8 @@ export default function PasswordStudy() {
                       </div>
                     )}
                     {currentMethod.id === "LASTCHAR" && (
-                      /* ÄNDERUNG 1: Feste Breite von 160px hier setzen */
-                      <div className="relative w-[160px]">
+                     // 1. Breite auf 140px reduziert (damit Overflow früher kommt)
+                      <div className="relative w-[140px]">
                         <input
                           ref={trialInputRef}
                           type="text"
@@ -738,7 +738,13 @@ export default function PasswordStudy() {
                           value={trialValue}
                           onChange={handleTrialChange}
                           onKeyDown={handleTrialKeydown}
-                          className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-text"
+                          // 2. WICHTIGE ÄNDERUNG FÜR MARKIERUNG:
+                          // - opacity-0 entfernt
+                          // - text-transparent: Text ist unsichtbar, aber existiert
+                          // - bg-transparent: Hintergrund durchsichtig
+                          // - selection:bg-cyan-500/50: Macht die Markierung blau/cyan sichtbar
+                          // - caret-white: Der Cursor bleibt sichtbar (optional, kann auch transparent sein)
+                          className="absolute inset-0 w-full h-full z-10 cursor-text bg-transparent text-transparent caret-white selection:bg-cyan-500/50 font-mono text-xl px-4 py-3.5"
                           autoComplete="new-password"
                           autoCorrect="off"
                           autoCapitalize="off"
@@ -747,12 +753,12 @@ export default function PasswordStudy() {
                           data-form-type="other"
                           aria-label="Passwort mit letztem sichtbarem Zeichen eingeben"
                         />
-                        {/* ÄNDERUNG 2: text-base zu text-xl ändern für größere Schrift */}
+                        {/* 3. Visuelles Feld (Die Punkte): Muss exakt dieselben Maße/Padding haben wie das Input darüber */}
                         <div className="w-full bg-zinc-900/80 border border-zinc-700/50 rounded-xl px-4 py-3.5 font-mono text-xl text-white tracking-wider overflow-x-auto whitespace-nowrap min-h-[52px] flex items-center no-scrollbar">
-                          {lastCharDisplay || <span className="text-zinc-600">Passwort...</span>}
+                          {lastCharDisplay || <span className="text-zinc-600 text-base">Passwort...</span>}
                         </div>
                       </div>
-                    )}    
+                    )}
 
                     {currentMethod.id === "CHROMA" && (
                       <div className="space-y-4">

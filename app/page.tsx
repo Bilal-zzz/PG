@@ -320,7 +320,7 @@ export default function PasswordStudy() {
 
         const timeout = setTimeout(() => {
           setLastCharDisplay("•".repeat(newValue.length))
-        }, 10)
+        }, 100)
         setLastCharTimeout(timeout)
       }
       

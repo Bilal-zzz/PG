@@ -189,6 +189,8 @@ export default function PasswordStudy() {
 
   const trialInputRef = useRef<HTMLInputElement | HTMLDivElement>(null)
   const prevTrialValueRef = useRef("")
+  const groupedCursorRef = useRef<HTMLSpanElement>(null)
+  const groupedContainerRef = useRef<HTMLDivElement>(null)
 
   // Detect device type and check completion on mount
   useEffect(() => {
@@ -398,6 +400,23 @@ export default function PasswordStudy() {
     
     setGroupedDisplayChars(chars)
   }
+
+  // Scroll grouped container to keep cursor visible
+  useEffect(() => {
+    const cursor = groupedCursorRef.current
+    const container = groupedContainerRef.current
+    if (!cursor || !container) return
+
+    requestAnimationFrame(() => {
+      const cursorRect = cursor.getBoundingClientRect()
+      const containerRect = container.getBoundingClientRect()
+      if (cursorRect.right > containerRect.right) {
+        container.scrollLeft += cursorRect.right - containerRect.right + 12
+      } else if (cursorRect.left < containerRect.left) {
+        container.scrollLeft -= containerRect.left - cursorRect.left + 12
+      }
+    })
+  }, [groupedDisplayChars])
   
 
   // Submit trial
@@ -755,7 +774,10 @@ export default function PasswordStudy() {
 
                     {currentMethod.id === "GROUPED" && (
                       <div
-                        ref={trialInputRef as React.RefObject<HTMLDivElement>}
+                        ref={(el) => {
+                          (trialInputRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+                          (groupedContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+                        }}
                         tabIndex={0}
                         role="textbox"
                         aria-label="Passwort mit gruppierter Maskierung eingeben"
@@ -769,6 +791,7 @@ export default function PasswordStudy() {
                               return (
                                 <span
                                   key={`c-${i}`}
+                                  ref={groupedCursorRef}
                                   className="animate-blink"
                                   style={{
                                     display: 'inline-block',

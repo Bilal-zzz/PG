@@ -605,7 +605,6 @@ export default function PasswordStudy() {
                 </button>
               </AnimatedScreen>
             )}
-           </>
 
             {/* Registration Screen */}
             {currentScreen === "registration" && (
@@ -1141,7 +1140,8 @@ export default function PasswordStudy() {
           </div>
         </div>
       </div>
-      )}
+      </> 
+     )}
     </div>
   )
 }

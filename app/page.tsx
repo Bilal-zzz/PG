@@ -183,15 +183,22 @@ export default function PasswordStudy() {
   const [openFeedback, setOpenFeedback] = useState("")
   const [consentChecked, setConsentChecked] = useState(false)
   const [deviceType, setDeviceType] = useState<"mobile" | "desktop">("desktop")
+  const [hasCompletedStudy, setHasCompletedStudy] = useState(false)
+  const [checkingCompletion, setCheckingCompletion] = useState(true)
 
   const trialInputRef = useRef<HTMLInputElement>(null)
   const prevTrialValueRef = useRef("")
 
-  // Detect device type on mount
+  // Detect device type and check completion on mount
   useEffect(() => {
     const isTouchDevice = navigator.maxTouchPoints > 0
     const isSmallScreen = window.innerWidth < 768
     setDeviceType(isTouchDevice || isSmallScreen ? "mobile" : "desktop")
+
+    if (localStorage.getItem("hasCompletedStudy") === "true") {
+      setHasCompletedStudy(true)
+    }
+    setCheckingCompletion(false)
   }, [])
 
   // Utilities
@@ -445,6 +452,8 @@ export default function PasswordStudy() {
 
       if (error) {
         console.error("Supabase error:", error)
+      } else {
+        localStorage.setItem("hasCompletedStudy", "true")
       }
     } catch (err) {
       console.error("Failed to send to Supabase:", err)
@@ -473,6 +482,29 @@ export default function PasswordStudy() {
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4 sm:p-6">
       {/* Subtle gradient background */}
       <div className="fixed inset-0 bg-gradient-to-br from-zinc-950 via-zinc-950 to-zinc-950 pointer-events-none" />
+
+      {checkingCompletion ? (
+        <div className="relative z-10 text-zinc-500 text-sm">Laden...</div>
+      ) : hasCompletedStudy ? (
+        <div className="relative z-10 w-full max-w-md">
+          <div className="bg-zinc-900/80 border border-zinc-800/50 rounded-3xl shadow-2xl p-8 text-center space-y-6">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-500/10 border border-emerald-500/20 rounded-full mx-auto">
+              <Shield className="w-8 h-8 text-emerald-400" />
+            </div>
+            <div className="space-y-2">
+              <h1 className="text-2xl font-bold text-white">Vielen Dank!</h1>
+              <p className="text-zinc-400 leading-relaxed text-sm">
+                Sie haben diese Studie bereits abgeschlossen. Eine mehrfache Teilnahme ist nicht möglich.
+              </p>
+            </div>
+            <div className="pt-2 border-t border-zinc-800">
+              <p className="text-zinc-600 text-xs">
+                Universität Bonn - Institut für Informatik
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : (
       <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-cyan-950/20 via-transparent to-transparent pointer-events-none" />
 
       <div className="relative w-full max-w-lg">
@@ -1107,6 +1139,7 @@ export default function PasswordStudy() {
           </div>
         </div>
       </div>
+      )}
     </div>
   )
 }

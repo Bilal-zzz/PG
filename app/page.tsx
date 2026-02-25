@@ -163,6 +163,7 @@ export default function PasswordStudy() {
   const [resultSuccess, setResultSuccess] = useState(false)
   const [lastCharTimeout, setLastCharTimeout] = useState<NodeJS.Timeout | null>(null)
   const [groupedRealValue, setGroupedRealValue] = useState("")
+  const [groupedCursorPos, setGroupedCursorPos] = useState(0)
   const [lastCharDisplay, setLastCharDisplay] = useState("")
 
   const [preferredMethod, setPreferredMethod] = useState<string | null>(null)
@@ -186,7 +187,7 @@ export default function PasswordStudy() {
   const [hasCompletedStudy, setHasCompletedStudy] = useState(false)
   const [checkingCompletion, setCheckingCompletion] = useState(true)
 
-  const trialInputRef = useRef<HTMLInputElement>(null)
+  const trialInputRef = useRef<HTMLInputElement | HTMLDivElement>(null)
   const prevTrialValueRef = useRef("")
 
   // Detect device type and check completion on mount
@@ -260,12 +261,13 @@ export default function PasswordStudy() {
     setBackspaceCount(0)
     setOverflowDetected(false)
     setGroupedRealValue("")
+    setGroupedCursorPos(0)
     setLastCharDisplay("")
     prevTrialValueRef.current = ""
     setTimeout(() => trialInputRef.current?.focus(), 100)
   }
 
-  const handleTrialKeydown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleTrialKeydown = (e: React.KeyboardEvent<HTMLInputElement | HTMLDivElement>) => {
     // Handle Enter to submit
     if (e.key === "Enter") {
       e.preventDefault()
@@ -284,18 +286,36 @@ export default function PasswordStudy() {
     if (currentMethod?.id === "GROUPED") {
       e.preventDefault()
       let newValue = groupedRealValue
+      let newCursor = groupedCursorPos
 
       if (e.key === "Backspace") {
-        newValue = newValue.slice(0, -1)
+        if (groupedCursorPos > 0) {
+          newValue = newValue.slice(0, groupedCursorPos - 1) + newValue.slice(groupedCursorPos)
+          newCursor = groupedCursorPos - 1
+        }
+      } else if (e.key === "Delete") {
+        if (groupedCursorPos < newValue.length) {
+          newValue = newValue.slice(0, groupedCursorPos) + newValue.slice(groupedCursorPos + 1)
+        }
+      } else if (e.key === "ArrowLeft") {
+        newCursor = Math.max(0, groupedCursorPos - 1)
+      } else if (e.key === "ArrowRight") {
+        newCursor = Math.min(newValue.length, groupedCursorPos + 1)
+      } else if (e.key === "Home") {
+        newCursor = 0
+      } else if (e.key === "End") {
+        newCursor = newValue.length
       } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
-        newValue += e.key
+        newValue = newValue.slice(0, groupedCursorPos) + e.key + newValue.slice(groupedCursorPos)
+        newCursor = groupedCursorPos + 1
         if (newValue.length > targetPassword.length) {
           setOverflowDetected(true)
         }
       }
 
       setGroupedRealValue(newValue)
-      renderGroupedDisplay(newValue)
+      setGroupedCursorPos(newCursor)
+      renderGroupedDisplay(newValue, newCursor)
     }
   }
 
@@ -350,29 +370,46 @@ export default function PasswordStudy() {
     }
   }
 
-  // Render grouped display
-  const renderGroupedDisplay = (value: string) => {
+  // Render grouped display with cursor at position
+  const renderGroupedDisplay = (value: string, cursorPos: number) => {
     const display = document.getElementById("grouped-display")
     if (!display) return
 
     if (value.length === 0) {
-      display.innerHTML = '<span class="placeholder text-zinc-600">...</span>'
+      display.innerHTML = '<span class="grouped-content"><span class="cursor"></span></span>'
       return
     }
 
     let html = '<span class="grouped-content">'
     for (let i = 0; i < value.length; i++) {
-      html += '<span class="char">•</span>'
+      // Insert cursor before this character if cursor is at this position
+      if (i === cursorPos) {
+        html += '<span class="cursor"></span>'
+      }
+      html += '<span class="char">&bull;</span>'
       if ((i + 1) % 4 === 0 && i < value.length - 1) {
         html += '<span class="space"></span>'
       }
     }
-    html += '<span class="cursor"></span>'
+    // Cursor at the end
+    if (cursorPos >= value.length) {
+      html += '<span class="cursor"></span>'
+    }
     html += '</span>'
     display.innerHTML = html
 
     requestAnimationFrame(() => {
-      display.scrollLeft = display.scrollWidth
+      // Scroll to keep cursor visible
+      const cursorEl = display.querySelector('.cursor')
+      if (cursorEl) {
+        const cursorRect = cursorEl.getBoundingClientRect()
+        const displayRect = display.getBoundingClientRect()
+        if (cursorRect.right > displayRect.right) {
+          display.scrollLeft += cursorRect.right - displayRect.right + 8
+        } else if (cursorRect.left < displayRect.left) {
+          display.scrollLeft -= displayRect.left - cursorRect.left + 8
+        }
+      }
     })
   }
   
@@ -732,25 +769,16 @@ export default function PasswordStudy() {
 
                     {currentMethod.id === "GROUPED" && (
                       <div className="relative">
-                        <input
-                          ref={trialInputRef}
-                          type="text"
-                          id="trial-input-grouped"
-                          name="study_field_grp_2"
-                          onKeyDown={handleTrialKeydown}
-                          className={`${inputBaseClasses} text-transparent caret-transparent selection:bg-transparent`}
-                          autoComplete="off"
-                          autoCorrect="off"
-                          autoCapitalize="off"
-                          spellCheck="false"
-                          data-lpignore="true"
-                          data-form-type="other"
-                        />
                         <div
+                          ref={trialInputRef as React.RefObject<HTMLDivElement>}
                           id="grouped-display"
-                          className="absolute inset-0 px-5 py-4 font-mono text-white pointer-events-none flex items-center overflow-x-auto whitespace-nowrap"
+                          tabIndex={0}
+                          role="textbox"
+                          aria-label="Passwort mit gruppierter Maskierung eingeben"
+                          onKeyDown={handleTrialKeydown}
+                          className={`${inputBaseClasses} flex items-center overflow-x-auto whitespace-nowrap outline-none cursor-text`}
                         >
-                          <span className="placeholder text-zinc-600">...</span>
+                          <span className="grouped-content"><span className="cursor"></span></span>
                         </div>
                         <style jsx>{`
                           .grouped-content {

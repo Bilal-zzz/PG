@@ -605,6 +605,7 @@ export default function PasswordStudy() {
                 </button>
               </AnimatedScreen>
             )}
+           </>
 
             {/* Registration Screen */}
             {currentScreen === "registration" && (

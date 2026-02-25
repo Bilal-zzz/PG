@@ -72,6 +72,7 @@ const methods: Method[] = [
   },
 ]
 
+// Animation wrapper component
 function AnimatedScreen({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   const [isVisible, setIsVisible] = useState(false)
   useEffect(() => {
@@ -89,6 +90,7 @@ function AnimatedScreen({ children, className = "" }: { children: React.ReactNod
   )
 }
 
+// Star rating component with improved UX
 function StarRating({
   value,
   onChange,
@@ -151,6 +153,7 @@ export default function PasswordStudy() {
     feedback: {},
   })
 
+  // Trial tracking
   const [trialValue, setTrialValue] = useState("")
   const [trialStartTime, setTrialStartTime] = useState<number | null>(null)
   const [firstKeyTime, setFirstKeyTime] = useState<number | null>(null)
@@ -186,6 +189,7 @@ export default function PasswordStudy() {
   const trialInputRef = useRef<HTMLInputElement>(null)
   const prevTrialValueRef = useRef("")
 
+  // Detect device type and check completion on mount
   useEffect(() => {
     const isTouchDevice = navigator.maxTouchPoints > 0
     const isSmallScreen = window.innerWidth < 768
@@ -197,6 +201,7 @@ export default function PasswordStudy() {
     setCheckingCompletion(false)
   }, [])
 
+  // Utilities
   const shuffleArray = (array: number[]) => {
     const arr = [...array]
     for (let i = arr.length - 1; i > 0; i--) {
@@ -210,6 +215,7 @@ export default function PasswordStudy() {
     let hash = 5381
     for (let i = 0; i < str.length; i++) {
       hash = (hash << 5) + hash + str.charCodeAt(i)
+      hash = hash & hash
     }
     return Math.abs(hash)
   }
@@ -228,11 +234,13 @@ export default function PasswordStudy() {
 
   const currentMethod = trialOrder.length > 0 ? methods[trialOrder[currentTrialIndex]] : null
 
+  // Start study
   const startStudy = () => {
     setStudyData({ ...studyData, startTime: Date.now() })
     setCurrentScreen("registration")
   }
 
+  // Register password
   const registerPassword = () => {
     if (registerValue.length <= 15) return
     setTargetPassword(registerValue)
@@ -243,6 +251,7 @@ export default function PasswordStudy() {
     setCurrentScreen("testing")
   }
 
+  // Setup trial
   const setupTrial = () => {
     setTrialValue("")
     setTrialStartTime(Date.now())
@@ -257,6 +266,7 @@ export default function PasswordStudy() {
   }
 
   const handleTrialKeydown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Handle Enter to submit
     if (e.key === "Enter") {
       e.preventDefault()
       submitTrial()
@@ -292,19 +302,26 @@ export default function PasswordStudy() {
   const handleTrialChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (currentMethod?.id === "LASTCHAR") {
       const displayValue = e.target.value
+      
+      // Clear any existing timeout
       if (lastCharTimeout) clearTimeout(lastCharTimeout)
       
+      // Determine if we're adding or removing characters
       const prevLength = prevTrialValueRef.current.length
       const currentLength = displayValue.length
       
       if (currentLength < prevLength) {
+        // Deletion - remove from actual value
         const newValue = trialValue.slice(0, -1)
         setTrialValue(newValue)
         setLastCharDisplay("•".repeat(newValue.length))
       } else if (currentLength > prevLength) {
+        // Addition - get the new character and add to actual value
         const newChar = displayValue.slice(-1)
         const newValue = trialValue + newChar
         setTrialValue(newValue)
+        
+        // Show last character briefly
         const masked = "•".repeat(newValue.length - 1) + newChar
         setLastCharDisplay(masked)
 
@@ -313,14 +330,27 @@ export default function PasswordStudy() {
         }, 250)
         setLastCharTimeout(timeout)
       }
+      
       prevTrialValueRef.current = displayValue
-    } else if (currentMethod?.id !== "GROUPED") {
+      
+      if (trialValue.length > targetPassword.length) {
+        setOverflowDetected(true)
+      }
+    } else if (currentMethod?.id === "GROUPED") {
+      // GROUPED is handled via keydown, not onChange
+      return
+    } else {
+      // For STANDARD and CHROMA methods
       const value = e.target.value
       setTrialValue(value)
-      if (value.length > targetPassword.length) setOverflowDetected(true)
+      
+      if (value.length > targetPassword.length) {
+        setOverflowDetected(true)
+      }
     }
   }
 
+  // Render grouped display
   const renderGroupedDisplay = (value: string) => {
     const display = document.getElementById("grouped-display")
     if (!display) return
@@ -340,8 +370,14 @@ export default function PasswordStudy() {
     html += '<span class="cursor"></span>'
     html += '</span>'
     display.innerHTML = html
-  }
 
+    requestAnimationFrame(() => {
+      display.scrollLeft = display.scrollWidth
+    })
+  }
+  
+
+  // Submit trial
   const submitTrial = () => {
     const endTime = Date.now()
     const actualValue = currentMethod?.id === "GROUPED" ? groupedRealValue : trialValue
@@ -371,6 +407,7 @@ export default function PasswordStudy() {
     setCurrentScreen("result")
   }
 
+  // Next trial
   const nextTrial = () => {
     if (currentTrialIndex < 3) {
       setCurrentTrialIndex(currentTrialIndex + 1)
@@ -382,12 +419,18 @@ export default function PasswordStudy() {
   }
 
   const handleMethodClick = (methodId: string) => {
-    if (preferredMethod === methodId) setPreferredMethod(null)
-    else if (hatedMethod === methodId) setHatedMethod(null)
-    else if (!preferredMethod) setPreferredMethod(methodId)
-    else if (!hatedMethod) setHatedMethod(methodId)
+    if (preferredMethod === methodId) {
+      setPreferredMethod(null)
+    } else if (hatedMethod === methodId) {
+      setHatedMethod(null)
+    } else if (!preferredMethod) {
+      setPreferredMethod(methodId)
+    } else if (!hatedMethod) {
+      setHatedMethod(methodId)
+    }
   }
 
+  // Download results and send to Supabase
   const downloadResults = async () => {
     const finalData = {
       device_type: deviceType,
@@ -406,13 +449,20 @@ export default function PasswordStudy() {
         data: finalData,
         created_at: new Date().toISOString(),
       })
-      if (!error) localStorage.setItem("hasCompletedStudy", "true")
+
+      if (error) {
+        console.error("Supabase error:", error)
+      } else {
+        localStorage.setItem("hasCompletedStudy", "true")
+      }
     } catch (err) {
-      console.error(err)
+      console.error("Failed to send to Supabase:", err)
     }
+
     setCurrentScreen("thanks")
   }
 
+  // Target colors for Chroma Hash
   const targetColors = hashToColors(targetPassword)
   const currentColors = hashToColors(currentMethod?.id === "GROUPED" ? groupedRealValue : trialValue)
 
@@ -423,11 +473,14 @@ export default function PasswordStudy() {
       (r) => r.visibility !== null && r.error_recovery !== null && r.security !== null && r.distraction !== null
     )
 
+  // Common input classes with overflow guarantee
+  // w-[140px] ist fix für alle Test-Felder
   const inputBaseClasses =
     "w-[140px] bg-zinc-900/80 border border-zinc-700/50 rounded-xl px-5 py-4 font-mono text-2xl text-white placeholder:text-zinc-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 transition-all duration-200"
 
   return (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4 sm:p-6">
+      {/* Subtle gradient background */}
       <div className="fixed inset-0 bg-gradient-to-br from-zinc-950 via-zinc-950 to-zinc-950 pointer-events-none" />
 
       {checkingCompletion ? (
@@ -445,173 +498,647 @@ export default function PasswordStudy() {
               </p>
             </div>
             <div className="pt-2 border-t border-zinc-800">
-              <p className="text-zinc-600 text-xs">Universität Bonn - Institut für Informatik</p>
+              <p className="text-zinc-600 text-xs">
+                Universität Bonn - Institut für Informatik
+              </p>
             </div>
           </div>
         </div>
       ) : (
-        <>
-          <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-cyan-950/20 via-transparent to-transparent pointer-events-none" />
-          <div className="relative w-full max-w-lg">
-            <div className="relative bg-zinc-900/70 backdrop-blur-2xl border border-zinc-800/80 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/50">
-              <div className="absolute -inset-px bg-gradient-to-br from-cyan-500/10 via-transparent to-blue-500/10 rounded-3xl pointer-events-none" />
-              <div className="relative">
-                {currentScreen === "instructions" && (
-                  <AnimatedScreen className="space-y-6">
-                    <div className="text-center space-y-3">
-                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500/10 border border-cyan-500/20 rounded-full text-cyan-400 text-sm font-medium">
-                        <Lock className="w-4 h-4" /> HCI-Forschungsstudie
-                      </div>
-                      <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Einwilligungserklärung</h1>
-                      <p className="text-zinc-400 text-sm">Universität Bonn - Institut für Informatik</p>
-                    </div>
-                    <div className="space-y-4 text-sm text-zinc-300 leading-relaxed">
-                      <div className="bg-zinc-800/50 border border-zinc-700/30 rounded-2xl p-4 space-y-3">
-                        <h2 className="font-semibold text-white">Ziel der Studie</h2>
-                        <p>Diese Studie untersucht verschiedene Methoden zur Passwort-Eingabe...</p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setConsentChecked(!consentChecked)}
-                      className="w-full flex items-start gap-3 p-4 bg-zinc-800/50 border border-zinc-700/50 rounded-2xl hover:bg-zinc-800/70 transition-colors text-left"
-                    >
-                      <div className={`flex-shrink-0 w-6 h-6 rounded-lg border-2 flex items-center justify-center ${consentChecked ? "bg-cyan-500 border-cyan-500" : "border-zinc-600"}`}>
-                        {consentChecked && <Check className="w-4 h-4 text-white" />}
-                      </div>
-                      <span className="text-sm text-zinc-300">Ich stimme der Teilnahme zu.</span>
-                    </button>
-                    <button
-                      onClick={startStudy}
-                      disabled={!consentChecked}
-                      className="w-full min-h-[48px] bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-semibold py-4 rounded-xl disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                      Studie beginnen <ChevronRight className="w-5 h-5" />
-                    </button>
-                  </AnimatedScreen>
-                )}
+      <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-cyan-950/20 via-transparent to-transparent pointer-events-none" />
 
-                {currentScreen === "registration" && (
-                  <AnimatedScreen className="space-y-6">
-                    <div className="text-center space-y-2">
-                      <h1 className="text-2xl font-bold text-white">Passwort erstellen</h1>
-                      <p className="text-zinc-400 text-sm">Mindestens 16 Zeichen.</p>
-                    </div>
+      <div className="relative w-full max-w-lg">
+        {/* Glassmorphism card */}
+        <div className="relative bg-zinc-900/70 backdrop-blur-2xl border border-zinc-800/80 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/50">
+          {/* Subtle glow effect */}
+          <div className="absolute -inset-px bg-gradient-to-br from-cyan-500/10 via-transparent to-blue-500/10 rounded-3xl pointer-events-none" />
+
+          <div className="relative">
+            {/* Instructions / Consent Screen */}
+            {currentScreen === "instructions" && (
+              <AnimatedScreen className="space-y-6">
+                <div className="text-center space-y-3">
+                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500/10 border border-cyan-500/20 rounded-full text-cyan-400 text-sm font-medium">
+                    <Lock className="w-4 h-4" />
+                    HCI-Forschungsstudie
+                  </div>
+                  <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Einwilligungserklärung</h1>
+                  <p className="text-zinc-400 text-sm">Universität Bonn - Institut für Informatik</p>
+                </div>
+
+                <div className="space-y-4 text-sm text-zinc-300 leading-relaxed">
+                  <div className="bg-zinc-800/50 border border-zinc-700/30 rounded-2xl p-4 space-y-3">
+                    <h2 className="font-semibold text-white">Ziel der Studie</h2>
+                    <p>
+                      Diese Studie untersucht verschiedene Methoden zur Passwort-Eingabe im Rahmen einer akademischen
+                      Forschungsarbeit. Wir möchten verstehen, welche Eingabemethoden als benutzerfreundlich und sicher
+                      empfunden werden.
+                    </p>
+                  </div>
+
+                  <div className="bg-zinc-800/50 border border-zinc-700/30 rounded-2xl p-4 space-y-3">
+                    <h2 className="font-semibold text-white">Was Sie tun werden</h2>
+                    <ul className="space-y-2">
+                      {[
+                        { id: 1, content: <>Ein <strong className="text-cyan-400">fiktives</strong> Passwort mit mehr als 15 Zeichen erstellen</> },
+                        { id: 2, content: <>Dasselbe Passwort 4-mal mit verschiedenen Eingabe-Designs eingeben</> },
+                        { id: 3, content: <>Kurzes Feedback zu Ihrer Erfahrung geben</> },
+                      ].map((item) => (
+                        <li key={item.id} className="flex items-start gap-2">
+                          <span className="text-cyan-400 mt-0.5">•</span>
+                          <span>{item.content}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="text-zinc-500 text-xs mt-2">Geschätzte Dauer: 3-5 Minuten</p>
+                  </div>
+
+                  <div className="bg-zinc-800/50 border border-zinc-700/30 rounded-2xl p-4 space-y-3">
+                    <h2 className="font-semibold text-white">Datenschutzhinweis (DSGVO)</h2>
+                    <p>
+                      Ihre Daten werden <strong className="text-emerald-400">vollständig anonymisiert</strong> und sicher in
+                      einer Datenbank gespeichert. Es werden keine personenbezogenen Daten erhoben. Die erhobenen Daten
+                      (Tastaturanschläge, Zeitmessungen, Feedback) dienen ausschließlich der wissenschaftlichen Auswertung
+                      an der Universität Bonn.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4">
+                  <p className="text-amber-200/90 font-semibold text-sm leading-relaxed">
+                    Wichtig: Verwenden Sie KEIN echtes Passwort! Bitte erfinden Sie ein neues Passwort für diese Studie.
+                  </p>
+                </div>
+
+                {/* Consent Checkbox */}
+                <button
+                  type="button"
+                  onClick={() => setConsentChecked(!consentChecked)}
+                  className="w-full flex items-start gap-3 p-4 bg-zinc-800/50 border border-zinc-700/50 rounded-2xl hover:bg-zinc-800/70 transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
+                  aria-pressed={consentChecked}
+                >
+                  <div
+                    className={`flex-shrink-0 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all duration-200 ${
+                      consentChecked
+                        ? "bg-gradient-to-br from-cyan-500 to-blue-600 border-cyan-500"
+                        : "border-zinc-600 bg-zinc-900/50"
+                    }`}
+                  >
+                    {consentChecked && <Check className="w-4 h-4 text-white" />}
+                  </div>
+                  <span className="text-sm text-zinc-300 leading-relaxed">
+                    Ich verstehe, dass meine Teilnahme <strong className="text-white">freiwillig</strong> und{" "}
+                    <strong className="text-white">anonym</strong> ist. Ich werde{" "}
+                    <strong className="text-amber-300">KEIN echtes Passwort</strong> verwenden. Ich stimme zu, dass meine
+                    anonymisierten Daten für akademische Forschungszwecke verwendet werden dürfen.
+                  </span>
+                </button>
+
+                <button
+                  onClick={startStudy}
+                  disabled={!consentChecked}
+                  className="w-full min-h-[48px] bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 disabled:from-zinc-800 disabled:to-zinc-800 disabled:text-zinc-600 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/30 disabled:shadow-none hover:scale-[1.02] active:scale-[0.98] disabled:scale-100 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 flex items-center justify-center gap-2"
+                >
+                  Studie beginnen
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </AnimatedScreen>
+            )}
+
+            {/* Registration Screen */}
+            {currentScreen === "registration" && (
+              <AnimatedScreen className="space-y-6">
+                <div className="text-center space-y-2">
+                  <h1 className="text-2xl font-bold text-white tracking-tight">Erstellen Sie Ihr Passwort</h1>
+                  <p className="text-zinc-400 text-sm leading-relaxed">
+                    Geben Sie ein Passwort ein, das Sie sich merken können. Es muss länger als 15 Zeichen sein.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <label
+                    htmlFor="register-password"
+                    className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider text-center"
+                  >
+                    Ihr Test-Passwort
+                  </label>
+                  <div className="flex justify-center">
                     <input
+                      /* Type text mit security disc um Autocomplete zu verhindern */
                       type="text"
+                      id="register-input-field"
+                      name="study_reg_field_xy"
                       style={{ WebkitTextSecurity: 'disc' }}
                       value={registerValue}
                       onChange={(e) => setRegisterValue(e.target.value)}
-                      className={inputBaseClasses + " !w-full"}
-                      placeholder="Passwort eingeben..."
+                      onKeyDown={(e) => e.key === "Enter" && registerValue.length > 15 && registerPassword()}
+                      /* Registration ist breit (!w-full), Test-Felder sind eng */
+                      className={inputBaseClasses + " !w-full !max-w-md"}
+                      placeholder="Mindestens 16 Zeichen eingeben..."
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck="false"
+                      data-lpignore="true"
+                      data-form-type="other"
+                      aria-describedby="password-length"
                     />
-                    <button
-                      onClick={registerPassword}
-                      disabled={registerValue.length <= 15}
-                      className="w-full bg-cyan-600 text-white py-4 rounded-xl disabled:opacity-50"
-                    >
-                      Weiter
-                    </button>
-                  </AnimatedScreen>
-                )}
+                  </div>
+                  <div
+                    id="password-length"
+                    className={`text-sm font-medium transition-colors text-center ${
+                      registerValue.length > 15 ? "text-emerald-400" : "text-zinc-500"
+                    }`}
+                  >
+                    {registerValue.length} / 16+ Zeichen
+                    {registerValue.length > 15 && <span className="ml-2">✓</span>}
+                  </div>
+                </div>
 
-                {currentScreen === "testing" && currentMethod && (
-                  <AnimatedScreen key={currentTrialIndex} className="space-y-6">
-                    <div className="text-center space-y-3">
-                      <h1 className="text-2xl font-bold text-white">Methode: {currentMethod.name}</h1>
-                    </div>
-                    <div className="flex justify-center">
-                      {currentMethod.id === "STANDARD" && (
+                <button
+                  onClick={registerPassword}
+                  disabled={registerValue.length <= 15}
+                  className="w-full min-h-[48px] bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 disabled:from-zinc-800 disabled:to-zinc-800 disabled:text-zinc-600 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/30 disabled:shadow-none hover:scale-[1.02] active:scale-[0.98] disabled:scale-100 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 flex items-center justify-center gap-2"
+                >
+                  Weiter
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </AnimatedScreen>
+            )}
+
+            {/* Testing Screen */}
+            {currentScreen === "testing" && currentMethod && (
+              <AnimatedScreen key={currentTrialIndex} className="space-y-6">
+                {/* Progress dots */}
+                <div className="flex justify-center gap-2" role="progressbar" aria-valuenow={currentTrialIndex + 1} aria-valuemin={1} aria-valuemax={4}>
+                  {[0, 1, 2, 3].map((i) => (
+                    <div
+                      key={i}
+                      className={`h-2 rounded-full transition-all duration-500 ${
+                        i < currentTrialIndex
+                          ? "w-8 bg-emerald-500"
+                          : i === currentTrialIndex
+                            ? "w-12 bg-gradient-to-r from-cyan-500 to-blue-500"
+                            : "w-2 bg-zinc-700"
+                      }`}
+                    />
+                  ))}
+                </div>
+
+                <div className="text-center space-y-3">
+                  <h1 className="text-2xl font-bold text-white tracking-tight">Geben Sie Ihr Passwort erneut ein</h1>
+                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500/10 border border-cyan-500/20 rounded-xl text-cyan-400 text-sm font-medium">
+                    {currentMethod.icon}
+                    Methode {currentTrialIndex + 1}/4: {currentMethod.name}
+                  </div>
+                </div>
+
+                <div className="bg-zinc-800/50 border border-zinc-700/30 rounded-2xl p-4">
+                  <p className="text-zinc-400 text-sm leading-relaxed">{currentMethod.description}</p>
+                </div>
+
+                <div className="space-y-4">
+                  {/* LABEL STATT PLACEHOLDER: Löst das Overflow Problem der Anweisung */}
+                  <label
+                    htmlFor="trial-input"
+                    className="block text-sm font-medium text-zinc-400 text-center mb-2"
+                  >
+                    Passwort hier eingeben:
+                  </label>
+
+                  <div className="flex justify-center items-center">
+                    {currentMethod.id === "STANDARD" && (
+                      <input
+                        ref={trialInputRef}
+                        /* TRICK: type text + webkit security disc verhindert "Passwort speichern" Dialoge */
+                        type="text"
+                        style={{ WebkitTextSecurity: 'disc' }}
+                        id="trial-input-standard"
+                        name="study_field_std_1"
+                        value={trialValue}
+                        onChange={handleTrialChange}
+                        onKeyDown={handleTrialKeydown}
+                        className={inputBaseClasses}
+                        placeholder="..."
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck="false"
+                        data-lpignore="true"
+                        data-form-type="other"
+                      />
+                    )}
+
+                    {currentMethod.id === "GROUPED" && (
+                      <div className="relative">
                         <input
                           ref={trialInputRef}
                           type="text"
-                          style={{ WebkitTextSecurity: 'disc' }}
-                          value={trialValue}
-                          onChange={handleTrialChange}
+                          id="trial-input-grouped"
+                          name="study_field_grp_2"
                           onKeyDown={handleTrialKeydown}
-                          className={inputBaseClasses}
+                          className={`${inputBaseClasses} text-transparent caret-transparent selection:bg-transparent`}
+                          autoComplete="off"
+                          autoCorrect="off"
+                          autoCapitalize="off"
+                          spellCheck="false"
+                          data-lpignore="true"
+                          data-form-type="other"
                         />
-                      )}
-                      {currentMethod.id === "GROUPED" && (
-                         <div className="relative">
-                           <input
-                             ref={trialInputRef}
-                             type="text"
-                             onKeyDown={handleTrialKeydown}
-                             className={`${inputBaseClasses} text-transparent caret-transparent`}
-                           />
-                           <div id="grouped-display" className="absolute inset-0 px-5 py-4 font-mono text-white pointer-events-none flex items-center overflow-hidden">
-                             <span className="placeholder text-zinc-600">...</span>
-                           </div>
-                         </div>
-                      )}
-                      {currentMethod.id === "LASTCHAR" && (
-                        <input
-                          ref={trialInputRef}
-                          type="text"
-                          value={lastCharDisplay || trialValue}
-                          onChange={handleTrialChange}
-                          onKeyDown={handleTrialKeydown}
-                          className={inputBaseClasses}
-                        />
-                      )}
-                      {currentMethod.id === "CHROMA" && (
-                        <div className="flex flex-col items-center gap-4">
-                           <input
+                        <div
+                          id="grouped-display"
+                          className="absolute inset-0 px-5 py-4 font-mono text-white pointer-events-none flex items-center overflow-x-auto whitespace-nowrap"
+                        >
+                          <span className="placeholder text-zinc-600">...</span>
+                        </div>
+                        <style jsx>{`
+                          .grouped-content {
+                            display: inline-flex;
+                            align-items: center;
+                            white-space: nowrap;
+                          }
+                          .char {
+                            display: inline-block;
+                            font-size: 1.5rem;
+                            flex-shrink: 0;
+                          }
+                          .space {
+                            display: inline-block;
+                            width: 0.75em;
+                            flex-shrink: 0;
+                          }
+                          .cursor {
+                            display: inline-block;
+                            width: 2px;
+                            height: 1.5em;
+                            background: linear-gradient(to bottom, #06b6d4, #3b82f6);
+                            margin-left: 2px;
+                            animation: blink 1s step-end infinite;
+                            vertical-align: middle;
+                            flex-shrink: 0;
+                          }
+                          @keyframes blink {
+                            0%,
+                            100% {
+                              opacity: 1;
+                            }
+                            50% {
+                              opacity: 0;
+                            }
+                          }
+                          .placeholder {
+                            color: #52525b;
+                          }
+                          #grouped-display::-webkit-scrollbar {
+                            display: none;
+                          }
+                          #grouped-display {
+                            -ms-overflow-style: none;
+                            scrollbar-width: none;
+                          }
+                        `}</style>
+                      </div>
+                    )}
+                    {currentMethod.id === "LASTCHAR" && (
+                      <input
+                        ref={trialInputRef}
+                        type="text"
+                        id="trial-input-last"
+                        name="study_field_last_3"
+                        value={lastCharDisplay || trialValue}
+                        onChange={handleTrialChange}
+                        onKeyDown={handleTrialKeydown}
+                        className={inputBaseClasses}
+                        placeholder="..."
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck="false"
+                        data-lpignore="true"
+                        data-form-type="other"
+                        style={{ 
+                          caretColor: 'white',
+                          userSelect: 'text',
+                          WebkitUserSelect: 'text'
+                        }}
+                      />
+                    )}
+
+                    {currentMethod.id === "CHROMA" && (
+                      <div className="space-y-4 w-full flex flex-col items-center">
+                        <div className="flex items-center justify-center gap-3">
+                          <input
                             ref={trialInputRef}
+                            /* TRICK: type text + webkit security disc */
                             type="text"
                             style={{ WebkitTextSecurity: 'disc' }}
+                            id="trial-input-chroma"
+                            name="study_field_chr_4"
                             value={trialValue}
                             onChange={handleTrialChange}
                             onKeyDown={handleTrialKeydown}
                             className={inputBaseClasses}
+                            placeholder="..."
+                            autoComplete="off"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck="false"
+                            data-lpignore="true"
+                            data-form-type="other"
                           />
-                          <div className="flex gap-2">
-                            {currentColors.map((c, i) => <div key={i} className="w-8 h-3 rounded-full" style={{backgroundColor: c}} />)}
+                          <div className="flex flex-col gap-1" aria-label="Aktuelle Farbcodes">
+                            {currentColors.map((color, i) => (
+                              <div
+                                key={i}
+                                className="w-8 h-2.5 rounded-full transition-all duration-300 ease-out shadow-lg"
+                                style={{
+                                  backgroundColor: color,
+                                  boxShadow: `0 0 10px ${color}50`,
+                                }}
+                              />
+                            ))}
                           </div>
                         </div>
-                      )}
-                    </div>
-                    <button onClick={submitTrial} className="w-full bg-cyan-600 text-white py-4 rounded-xl">Absenden</button>
-                  </AnimatedScreen>
-                )}
+                        <div className="flex items-center gap-3 justify-center">
+                          <span className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Ziel:</span>
+                          <div className="flex gap-2" aria-label="Ziel-Farbcodes">
+                            {targetColors.map((color, i) => (
+                              <div
+                                key={i}
+                                className="w-8 h-2.5 rounded-full border border-zinc-600/50"
+                                style={{ backgroundColor: color }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
-                {currentScreen === "result" && (
-                  <AnimatedScreen className="space-y-6 text-center">
-                    <h1 className="text-2xl font-bold text-white">{resultSuccess ? "Erfolgreich!" : "Fehler"}</h1>
-                    <button onClick={nextTrial} className="w-full bg-cyan-600 text-white py-4 rounded-xl">Weiter</button>
-                  </AnimatedScreen>
-                )}
+                  <p className="text-xs text-zinc-500 text-center">Drücken Sie Enter oder klicken Sie auf Absenden</p>
 
-                {currentScreen === "feedback" && (
-                  <AnimatedScreen className="space-y-8">
-                    <h1 className="text-2xl font-bold text-white text-center">Feedback</h1>
-                    <div className="grid grid-cols-2 gap-3">
-                      {methods.map(m => (
-                        <button 
-                          key={m.id} 
-                          onClick={() => handleMethodClick(m.id)}
-                          className={`p-4 border-2 rounded-xl ${preferredMethod === m.id ? 'border-emerald-500 bg-emerald-500/10' : hatedMethod === m.id ? 'border-red-500 bg-red-500/10' : 'border-zinc-700'}`}
+                  <button
+                    onClick={submitTrial}
+                    className="w-full min-h-[48px] bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/30 hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
+                  >
+                    Absenden
+                  </button>
+                </div>
+              </AnimatedScreen>
+            )}
+
+            {/* Result Screen */}
+            {currentScreen === "result" && (
+              <AnimatedScreen className="space-y-6 text-center">
+                <div
+                  className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center ${
+                    resultSuccess
+                      ? "bg-emerald-500/20 text-emerald-400"
+                      : "bg-red-500/20 text-red-400"
+                  }`}
+                >
+                  {resultSuccess ? (
+                    <CheckCircle2 className="w-10 h-10" />
+                  ) : (
+                    <XCircle className="w-10 h-10" />
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <h1 className="text-2xl font-bold text-white tracking-tight">
+                    {resultSuccess ? "Erfolgreich!" : "Nicht übereinstimmend"}
+                  </h1>
+                  <p className="text-zinc-400 leading-relaxed">
+                    {resultSuccess
+                      ? "Ihr Passwort wurde korrekt eingegeben."
+                      : "Das eingegebene Passwort stimmte nicht mit dem Original überein."}
+                  </p>
+                </div>
+                <button
+                  onClick={nextTrial}
+                  className="w-full min-h-[48px] bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/30 hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 flex items-center justify-center gap-2"
+                >
+                  {currentTrialIndex < 3 ? "Nächste Aufgabe" : "Zum Feedback"}
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </AnimatedScreen>
+            )}
+
+            {/* Feedback Screen */}
+            {currentScreen === "feedback" && (
+              <AnimatedScreen className="space-y-8">
+                <div className="text-center space-y-2">
+                  <h1 className="text-2xl font-bold text-white tracking-tight">Ergebnisse & Feedback</h1>
+                  <p className="text-zinc-400 text-sm leading-relaxed">
+                    Bewerten Sie Ihre Erfahrung mit den verschiedenen Methoden
+                  </p>
+                </div>
+
+                {/* Ranking Section */}
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <h2 className="text-lg font-semibold text-white">Ranking</h2>
+                    <p className="text-sm text-zinc-400 leading-relaxed">
+                      Klicken Sie auf die <span className="text-emerald-400 font-semibold">beste</span> Methode (1.
+                      Klick) und dann auf die <span className="text-red-400 font-semibold">schlechteste</span> Methode
+                      (2. Klick)
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {methods.map((method) => {
+                      const isPreferred = preferredMethod === method.id
+                      const isHated = hatedMethod === method.id
+
+                      // Mini preview for each method
+                      const renderPreview = () => {
+                        switch (method.id) {
+                          case "STANDARD":
+                            return (
+                              <div className="flex items-center gap-0.5 mt-2 mb-1">
+                                {Array.from({ length: 8 }).map((_, i) => (
+                                  <span key={i} className="text-zinc-400 text-[10px] leading-none select-none">{"●"}</span>
+                                ))}
+                              </div>
+                            )
+                          case "GROUPED":
+                            return (
+                              <div className="flex items-center gap-0.5 mt-2 mb-1">
+                                {["●●●●", " ", "●●●●", " ", "●●●●"].map((seg, i) =>
+                                  seg === " " ? (
+                                    <span key={i} className="w-1.5" />
+                                  ) : (
+                                    <span key={i} className="text-zinc-400 text-[10px] leading-none tracking-tight select-none">{seg}</span>
+                                  )
+                                )}
+                              </div>
+                            )
+                          case "LASTCHAR":
+                            return (
+                              <div className="flex items-center gap-0.5 mt-2 mb-1">
+                                <span className="text-zinc-400 text-[10px] leading-none select-none">{"●●●●●●●"}</span>
+                                <span className="text-cyan-400 text-[10px] leading-none font-bold select-none">{"k"}</span>
+                              </div>
+                            )
+                          case "CHROMA":
+                            return (
+                              <div className="flex items-center gap-1 mt-2 mb-1">
+                                <div className="w-5 h-1.5 rounded-full bg-rose-500" />
+                                <div className="w-5 h-1.5 rounded-full bg-cyan-500" />
+                                <div className="w-5 h-1.5 rounded-full bg-amber-500" />
+                              </div>
+                            )
+                          default:
+                            return null
+                        }
+                      }
+
+                      return (
+                        <button
+                          key={method.id}
+                          onClick={() => handleMethodClick(method.id)}
+                          aria-pressed={isPreferred || isHated}
+                          aria-label={`${method.name}${isPreferred ? " - Beste Wahl" : isHated ? " - Schlechteste Wahl" : ""}`}
+                          className={`relative min-h-[100px] p-4 rounded-2xl border-2 transition-all duration-300 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 ${
+                            isPreferred
+                              ? "bg-emerald-500/15 border-emerald-500/50 shadow-lg shadow-emerald-500/20 scale-[1.02]"
+                              : isHated
+                                ? "bg-red-500/15 border-red-500/50 shadow-lg shadow-red-500/20 scale-[1.02]"
+                                : "bg-zinc-800/50 border-zinc-700/50 hover:border-zinc-600 hover:bg-zinc-800/70"
+                          }`}
                         >
-                          <span className="text-white text-sm font-bold">{m.name}</span>
+                          {isPreferred && (
+                            <span className="absolute -top-2 -right-2 bg-emerald-500 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-lg">
+                              BESTE
+                            </span>
+                          )}
+                          {isHated && (
+                            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-lg">
+                              SCHLECHTESTE
+                            </span>
+                          )}
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={
+                                isPreferred ? "text-emerald-400" : isHated ? "text-red-400" : "text-zinc-400"
+                              }
+                            >
+                              {method.icon}
+                            </span>
+                            <span
+                              className={`font-semibold text-sm ${
+                                isPreferred ? "text-emerald-300" : isHated ? "text-red-300" : "text-white"
+                              }`}
+                            >
+                              {method.name}
+                            </span>
+                          </div>
+                          <div className="bg-zinc-900/60 rounded-lg px-2.5 py-1.5 mt-2 border border-zinc-700/30">
+                            {renderPreview()}
+                          </div>
+                          <div className="text-[11px] text-zinc-500 line-clamp-2 mt-1.5">{method.description}</div>
                         </button>
-                      ))}
-                    </div>
-                    <button onClick={downloadResults} disabled={!canFinish} className="w-full bg-emerald-600 text-white py-4 rounded-xl disabled:opacity-50">
-                      Abschließen
-                    </button>
-                  </AnimatedScreen>
-                )}
+                      )
+                    })}
+                  </div>
+                </div>
 
-                {currentScreen === "thanks" && (
-                  <AnimatedScreen className="text-center py-8">
-                    <h1 className="text-2xl font-bold text-white">Vielen Dank!</h1>
-                  </AnimatedScreen>
+                {/* Method Ratings */}
+                <div className="space-y-6">
+                  <h2 className="text-lg font-semibold text-white">Bewertungen pro Methode</h2>
+
+                  {Object.entries(methodRatings).map(([methodKey, ratings]) => {
+                    const methodNames: { [key: string]: string } = {
+                      STANDARD: "Standard",
+                      GROUPED: "Gruppierte Maskierung",
+                      LASTCHAR: "Letztes Zeichen sichtbar",
+                      CHROMA: "Farbfeedback",
+                    }
+                    const methodIcons: { [key: string]: React.ReactNode } = {
+                      STANDARD: <Lock className="w-4 h-4" />,
+                      GROUPED: <Eye className="w-4 h-4" />,
+                      LASTCHAR: <Shield className="w-4 h-4" />,
+                      CHROMA: <Sparkles className="w-4 h-4" />,
+                    }
+                    const questions = [
+                      { key: "visibility", label: "Ich wusste immer, ob meine Eingabe registriert wurde." },
+                      { key: "error_recovery", label: "Fehler zu korrigieren war einfach." },
+                      { key: "security", label: "Ich fühlte mich geschützt vor neugierigen Blicken." },
+                      { key: "distraction", label: "Die visuellen Effekte waren ablenkend." },
+                    ]
+
+                    return (
+                      <div
+                        key={methodKey}
+                        className="p-5 rounded-2xl bg-zinc-800/40 border border-zinc-700/50 space-y-5"
+                      >
+                        <div className="flex items-center gap-2 text-cyan-400">
+                          {methodIcons[methodKey]}
+                          <h3 className="font-semibold">{methodNames[methodKey]}</h3>
+                        </div>
+                        {questions.map((q) => (
+                          <StarRating
+                            key={q.key}
+                            label={q.label}
+                            value={ratings[q.key as keyof typeof ratings]}
+                            onChange={(val) =>
+                              setMethodRatings({
+                                ...methodRatings,
+                                [methodKey]: { ...ratings, [q.key]: val },
+                              })
+                            }
+                          />
+                        ))}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Open Feedback */}
+                <div className="space-y-3">
+                  <label htmlFor="open-feedback" className="block text-sm text-zinc-300 font-medium">
+                    Was hat Sie beim langen Passwort am meisten gestört?
+                  </label>
+                  <textarea
+                    id="open-feedback"
+                    rows={3}
+                    value={openFeedback}
+                    onChange={(e) => setOpenFeedback(e.target.value)}
+                    className="w-full bg-zinc-900/80 border border-zinc-700/50 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 transition-all resize-none text-sm leading-relaxed"
+                    placeholder="Teilen Sie Ihre Gedanken..."
+                  />
+                </div>
+
+                <button
+                  onClick={downloadResults}
+                  disabled={!canFinish}
+                  className="w-full min-h-[48px] bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:from-zinc-800 disabled:to-zinc-800 disabled:text-zinc-600 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 disabled:shadow-none hover:scale-[1.02] active:scale-[0.98] disabled:scale-100 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
+                >
+                  Abschließen
+                </button>
+                {!canFinish && (
+                  <p className="text-xs text-zinc-500 text-center">
+                    Bitte wählen Sie beste/schlechteste Methode und bewerten Sie alle Aussagen
+                  </p>
                 )}
-              </div>
-            </div>
+              </AnimatedScreen>
+            )}
+
+            {/* Thank You Screen */}
+            {currentScreen === "thanks" && (
+              <AnimatedScreen className="space-y-6 text-center py-8">
+                <div className="w-20 h-20 mx-auto rounded-full bg-emerald-500/20 flex items-center justify-center">
+                  <CheckCircle2 className="w-10 h-10 text-emerald-400" />
+                </div>
+                <div className="space-y-2">
+                  <h1 className="text-2xl font-bold text-white tracking-tight">Vielen Dank!</h1>
+                  <p className="text-zinc-400 leading-relaxed">
+                    Ihre Studiendaten wurden gespeichert. Vielen Dank für Ihre Teilnahme an dieser Forschung!
+                  </p>
+                </div>
+              </AnimatedScreen>
+            )}
           </div>
-        </>
+        </div>
+      </div>
       )}
     </div>
   )

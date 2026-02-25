@@ -505,9 +505,9 @@ export default function PasswordStudy() {
           </div>
         </div>
       ) : (
-      <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-cyan-950/20 via-transparent to-transparent pointer-events-none" />
+      <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-cyan-950/20 via-transparent to-transparent pointer-events-none"
 
-      <div className="relative w-full max-w-lg">
+      div className="relative w-full max-w-lg"/>
         {/* Glassmorphism card */}
         <div className="relative bg-zinc-900/70 backdrop-blur-2xl border border-zinc-800/80 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/50">
           {/* Subtle glow effect */}

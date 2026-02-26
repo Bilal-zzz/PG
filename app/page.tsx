@@ -191,6 +191,7 @@ export default function PasswordStudy() {
   const prevTrialValueRef = useRef("")
   const groupedCursorRef = useRef<HTMLSpanElement>(null)
   const groupedContainerRef = useRef<HTMLDivElement>(null)
+  const groupedInputRef = useRef<HTMLInputElement>(null)
 
   // Detect device type and check completion on mount
   useEffect(() => {
@@ -266,7 +267,13 @@ export default function PasswordStudy() {
     setGroupedCursorPos(0)
     setLastCharDisplay("")
     prevTrialValueRef.current = ""
-    setTimeout(() => trialInputRef.current?.focus(), 100)
+    setTimeout(() => {
+      if (methods[studyData.trials.length]?.id === "GROUPED") {
+        groupedInputRef.current?.focus()
+      } else {
+        trialInputRef.current?.focus()
+      }
+    }, 100)
   }
 
   const handleTrialKeydown = (e: React.KeyboardEvent<HTMLInputElement | HTMLDivElement>) => {

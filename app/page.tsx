@@ -782,15 +782,56 @@ export default function PasswordStudy() {
 
                     {currentMethod.id === "GROUPED" && (
                       <div className="relative">
-                        {/* Hidden input that captures keyboard on mobile */}
+                        {/* Hidden input that captures keyboard on both desktop and mobile */}
                         <input
                           ref={groupedInputRef}
                           type="text"
                           id="trial-input-grouped"
                           name="study_field_grouped_2"
                           value=""
-                          readOnly
                           onKeyDown={handleTrialKeydown}
+                          onBeforeInput={(e: React.CompositionEvent<HTMLInputElement>) => {
+                            // Handle mobile keyboard input
+                            const nativeEvent = e.nativeEvent as InputEvent
+                            e.preventDefault()
+                            
+                            const now = Date.now()
+                            if (!firstKeyTime) setFirstKeyTime(now)
+                            setKeystrokeTimestamps([...keystrokeTimestamps, now])
+                            
+                            let newValue = groupedRealValue
+                            let newCursor = groupedCursorPos
+                            
+                            if (nativeEvent.inputType === 'deleteContentBackward') {
+                              // Backspace
+                              setBackspaceCount(backspaceCount + 1)
+                              if (groupedCursorPos > 0) {
+                                newValue = newValue.slice(0, groupedCursorPos - 1) + newValue.slice(groupedCursorPos)
+                                newCursor = groupedCursorPos - 1
+                              }
+                            } else if (nativeEvent.inputType === 'deleteContentForward') {
+                              // Delete
+                              if (groupedCursorPos < newValue.length) {
+                                newValue = newValue.slice(0, groupedCursorPos) + newValue.slice(groupedCursorPos + 1)
+                              }
+                            } else if (nativeEvent.data && nativeEvent.data.length === 1) {
+                              // Character input
+                              newValue = newValue.slice(0, groupedCursorPos) + nativeEvent.data + newValue.slice(groupedCursorPos)
+                              newCursor = groupedCursorPos + 1
+                              if (newValue.length > targetPassword.length) {
+                                setOverflowDetected(true)
+                              }
+                            }
+                            
+                            setGroupedRealValue(newValue)
+                            setGroupedCursorPos(newCursor)
+                            renderGroupedDisplay(newValue, newCursor)
+                            
+                            // Keep input empty
+                            const target = e.target as HTMLInputElement
+                            setTimeout(() => { target.value = "" }, 0)
+                          }}
+                          onChange={() => {}}
                           className="absolute inset-0 opacity-0 cursor-text"
                           style={{ caretColor: 'transparent' }}
                           autoComplete="off"
@@ -809,6 +850,12 @@ export default function PasswordStudy() {
                           }}
                           onClick={() => {
                             // Focus the hidden input on click (both desktop and mobile)
+                            if (groupedInputRef.current) {
+                              groupedInputRef.current.focus()
+                            }
+                          }}
+                          onTouchStart={() => {
+                            // Explicitly handle touch events for mobile
                             if (groupedInputRef.current) {
                               groupedInputRef.current.focus()
                             }

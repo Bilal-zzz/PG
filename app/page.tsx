@@ -1121,7 +1121,7 @@ export default function PasswordStudy() {
                 {/* Open Feedback */}
                 <div className="space-y-3">
                   <label htmlFor="open-feedback" className="block text-sm text-zinc-300 font-medium">
-                    Was hat Sie beim langen Passwort am meisten gestört?
+                    Wenn du eine Sache an diesem Eingabefeld ändern könntest, um es intuitiver oder sicherer zu machen – was wäre das?
                   </label>
                   <textarea
                     id="open-feedback"

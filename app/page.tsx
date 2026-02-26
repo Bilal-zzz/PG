@@ -267,6 +267,7 @@ export default function PasswordStudy() {
     setGroupedCursorPos(0)
     setLastCharDisplay("")
     prevTrialValueRef.current = ""
+    renderGroupedDisplay("", 0) // Initialize grouped display
     setTimeout(() => {
       if (methods[studyData.trials.length]?.id === "GROUPED") {
         groupedInputRef.current?.focus()
@@ -780,83 +781,80 @@ export default function PasswordStudy() {
                     )}
 
                     {currentMethod.id === "GROUPED" && (
-                      <div 
-                        className="relative"
-                        onClick={() => {
-                          if (trialInputRef.current) {
-                            trialInputRef.current.focus()
-                          }
-                        }}
-                      >
+                      <div className="relative">
+                        {/* Hidden input that captures keyboard on mobile */}
                         <input
-                          ref={trialInputRef}
+                          ref={groupedInputRef}
                           type="text"
-                          id="trial-input"
-                          name="trial-password-grouped"
+                          id="trial-input-grouped"
+                          name="study_field_grouped_2"
                           value=""
                           readOnly
                           onKeyDown={handleTrialKeydown}
-                          className={`${inputBaseClasses} text-transparent caret-transparent selection:bg-transparent cursor-text`}
-                          autoComplete="new-password"
+                          className="absolute inset-0 opacity-0 cursor-text"
+                          style={{ caretColor: 'transparent' }}
+                          autoComplete="off"
                           autoCorrect="off"
                           autoCapitalize="off"
                           spellCheck="false"
                           data-lpignore="true"
                           data-form-type="other"
-                          aria-label="Gruppiertes Passwort eingeben"
+                          aria-label="Passwort mit gruppierter Maskierung eingeben"
                         />
+                        {/* Visible display div */}
                         <div
-                          id="grouped-display"
-                          className="absolute inset-0 px-5 py-4 font-mono text-white pointer-events-none flex items-center overflow-x-auto whitespace-nowrap"
+                          ref={(el) => {
+                            (trialInputRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+                            (groupedContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+                          }}
+                          onClick={() => {
+                            // Focus the hidden input on click (both desktop and mobile)
+                            if (groupedInputRef.current) {
+                              groupedInputRef.current.focus()
+                            }
+                          }}
+                          className={`${inputBaseClasses} flex items-center overflow-x-auto whitespace-nowrap cursor-text relative`}
+                          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                         >
-                          <span className="placeholder text-zinc-600">Passwort...</span>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
+                            {groupedDisplayChars.map((item, i) => {
+                              if (item.type === 'cursor') {
+                                return (
+                                  <span
+                                    key={`c-${i}`}
+                                    ref={groupedCursorRef}
+                                    className="animate-blink"
+                                    style={{
+                                      display: 'inline-block',
+                                      width: 2,
+                                      height: '1.5em',
+                                      background: 'linear-gradient(to bottom, #06b6d4, #3b82f6)',
+                                      marginLeft: 2,
+                                      verticalAlign: 'middle',
+                                      flexShrink: 0,
+                                    }}
+                                  />
+                                )
+                              }
+                              if (item.type === 'space') {
+                                return (
+                                  <span
+                                    key={`s-${i}`}
+                                    style={{ display: 'inline-block', width: '0.75em', flexShrink: 0 }}
+                                  />
+                                )
+                              }
+                              return (
+                                <span
+                                  key={`d-${i}`}
+                                  style={{ display: 'inline-block', fontSize: '1.5rem', flexShrink: 0 }}
+                                >
+                                  &bull;
+                                </span>
+                              )
+                            })}
+                          </span>
                         </div>
-                        <style jsx>{`
-                          .grouped-content {
-                            display: inline-flex;
-                            align-items: center;
-                            white-space: nowrap;
-                          }
-                          .char {
-                            display: inline-block;
-                            font-size: 1.5rem;
-                            flex-shrink: 0;
-                          }
-                          .space {
-                            display: inline-block;
-                            width: 0.75em;
-                            flex-shrink: 0;
-                          }
-                          .cursor {
-                            display: inline-block;
-                            width: 2px;
-                            height: 1.5em;
-                            background: linear-gradient(to bottom, #06b6d4, #3b82f6);
-                            margin-left: 2px;
-                            animation: blink 1s step-end infinite;
-                            vertical-align: middle;
-                            flex-shrink: 0;
-                          }
-                          @keyframes blink {
-                            0%,
-                            100% {
-                              opacity: 1;
-                            }
-                            50% {
-                              opacity: 0;
-                            }
-                          }
-                          .placeholder {
-                            color: #52525b;
-                          }
-                          #grouped-display::-webkit-scrollbar {
-                            display: none;
-                          }
-                          #grouped-display {
-                            -ms-overflow-style: none;
-                            scrollbar-width: none;
-                          }
-                        `}</style>
                       </div>
                     )}
                     {currentMethod.id === "LASTCHAR" && (

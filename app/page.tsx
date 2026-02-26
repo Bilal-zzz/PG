@@ -780,56 +780,83 @@ export default function PasswordStudy() {
                     )}
 
                     {currentMethod.id === "GROUPED" && (
-                      <div
-                        ref={(el) => {
-                          (trialInputRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-                          (groupedContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+                      <div 
+                        className="relative"
+                        onClick={() => {
+                          if (trialInputRef.current) {
+                            trialInputRef.current.focus()
+                          }
                         }}
-                        tabIndex={0}
-                        role="textbox"
-                        aria-label="Passwort mit gruppierter Maskierung eingeben"
-                        onKeyDown={handleTrialKeydown}
-                        className={`${inputBaseClasses} flex items-center overflow-x-auto whitespace-nowrap outline-none cursor-text`}
-                        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                       >
-                        <span style={{ display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
-                          {groupedDisplayChars.map((item, i) => {
-                            if (item.type === 'cursor') {
-                              return (
-                                <span
-                                  key={`c-${i}`}
-                                  ref={groupedCursorRef}
-                                  className="animate-blink"
-                                  style={{
-                                    display: 'inline-block',
-                                    width: 2,
-                                    height: '1.5em',
-                                    background: 'linear-gradient(to bottom, #06b6d4, #3b82f6)',
-                                    marginLeft: 2,
-                                    verticalAlign: 'middle',
-                                    flexShrink: 0,
-                                  }}
-                                />
-                              )
+                        <input
+                          ref={trialInputRef}
+                          type="text"
+                          id="trial-input"
+                          name="trial-password-grouped"
+                          value=""
+                          readOnly
+                          onKeyDown={handleTrialKeydown}
+                          className={`${inputBaseClasses} text-transparent caret-transparent selection:bg-transparent cursor-text`}
+                          autoComplete="new-password"
+                          autoCorrect="off"
+                          autoCapitalize="off"
+                          spellCheck="false"
+                          data-lpignore="true"
+                          data-form-type="other"
+                          aria-label="Gruppiertes Passwort eingeben"
+                        />
+                        <div
+                          id="grouped-display"
+                          className="absolute inset-0 px-5 py-4 font-mono text-white pointer-events-none flex items-center overflow-x-auto whitespace-nowrap"
+                        >
+                          <span className="placeholder text-zinc-600">Passwort...</span>
+                        </div>
+                        <style jsx>{`
+                          .grouped-content {
+                            display: inline-flex;
+                            align-items: center;
+                            white-space: nowrap;
+                          }
+                          .char {
+                            display: inline-block;
+                            font-size: 1.5rem;
+                            flex-shrink: 0;
+                          }
+                          .space {
+                            display: inline-block;
+                            width: 0.75em;
+                            flex-shrink: 0;
+                          }
+                          .cursor {
+                            display: inline-block;
+                            width: 2px;
+                            height: 1.5em;
+                            background: linear-gradient(to bottom, #06b6d4, #3b82f6);
+                            margin-left: 2px;
+                            animation: blink 1s step-end infinite;
+                            vertical-align: middle;
+                            flex-shrink: 0;
+                          }
+                          @keyframes blink {
+                            0%,
+                            100% {
+                              opacity: 1;
                             }
-                            if (item.type === 'space') {
-                              return (
-                                <span
-                                  key={`s-${i}`}
-                                  style={{ display: 'inline-block', width: '0.75em', flexShrink: 0 }}
-                                />
-                              )
+                            50% {
+                              opacity: 0;
                             }
-                            return (
-                              <span
-                                key={`d-${i}`}
-                                style={{ display: 'inline-block', fontSize: '1.5rem', flexShrink: 0 }}
-                              >
-                                &bull;
-                              </span>
-                            )
-                          })}
-                        </span>
+                          }
+                          .placeholder {
+                            color: #52525b;
+                          }
+                          #grouped-display::-webkit-scrollbar {
+                            display: none;
+                          }
+                          #grouped-display {
+                            -ms-overflow-style: none;
+                            scrollbar-width: none;
+                          }
+                        `}</style>
                       </div>
                     )}
                     {currentMethod.id === "LASTCHAR" && (

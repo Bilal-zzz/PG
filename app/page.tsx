@@ -1,14 +1,30 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef, useEffect } from "react"
-import { createClient } from "@supabase/supabase-js"
-import { CheckCircle2, XCircle, ChevronRight, Star, Lock, Eye, Shield, Sparkles, Check } from "lucide-react"
+import { useState, useRef, useEffect, useCallback } from "react"
+import { CheckCircle2, XCircle, ChevronRight, Star, Lock, Eye, Shield, Sparkles, Check, Copy } from "lucide-react"
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+// ── Pool of target passwords (exactly 10 chars, 1 uppercase, 1 number, 1 special) ──
+const TARGET_PASSWORD_POOL = [
+  "Tr@ktor99!",
+  "bL1tz&ard2",
+  "Ka$tle07+x",
+  "mR3zel!p9Q",
+  "fJ5ront#8w",
+  "sN!pper4zK",
+  "wQ9blade$2",
+  "hX7quest!3",
+  "dP2frost&6",
+  "vL8crypt#1",
+  "gT4spark!7",
+  "yM6drift$5",
+]
+
+function pickRandomPassword(exclude: string[]): string {
+  const available = TARGET_PASSWORD_POOL.filter((p) => !exclude.includes(p))
+  const pool = available.length > 0 ? available : TARGET_PASSWORD_POOL
+  return pool[Math.floor(Math.random() * pool.length)]
+}
 
 interface Method {
   id: string
@@ -25,6 +41,8 @@ interface TrialData {
   averageKeystrokeInterval: number | null
   backspaceCount: number
   overflowDetected: boolean
+  targetPassword: string
+  typedPassword: string
 }
 
 interface StudyData {
@@ -107,7 +125,7 @@ function StarRating({
       <label className="block text-sm text-zinc-300 leading-relaxed">{label}</label>
       <div className="flex gap-1" role="radiogroup" aria-label={label}>
         {[1, 2, 3, 4, 5].map((val) => {
-          const isActive = (hovered !== null ? hovered >= val : (value ?? 0) >= val)
+          const isActive = hovered !== null ? hovered >= val : (value ?? 0) >= val
           return (
             <button
               key={val}
@@ -139,12 +157,19 @@ function StarRating({
   )
 }
 
+// ── Anti-cheat props applied to every password input ──
+const antiCheatProps = {
+  onPaste: (e: React.ClipboardEvent) => e.preventDefault(),
+  onDrop: (e: React.DragEvent) => e.preventDefault(),
+  onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
+}
+
 export default function PasswordStudy() {
   const [currentScreen, setCurrentScreen] = useState<
-    "instructions" | "registration" | "testing" | "result" | "feedback" | "thanks"
+    "instructions" | "testing" | "result" | "feedback" | "thanks"
   >("instructions")
-  const [targetPassword, setTargetPassword] = useState("")
-  const [registerValue, setRegisterValue] = useState("")
+  const [currentTargetPassword, setCurrentTargetPassword] = useState("")
+  const [usedPasswords, setUsedPasswords] = useState<string[]>([])
   const [trialOrder, setTrialOrder] = useState<number[]>([])
   const [currentTrialIndex, setCurrentTrialIndex] = useState(0)
   const [studyData, setStudyData] = useState<StudyData>({
@@ -238,25 +263,21 @@ export default function PasswordStudy() {
 
   const currentMethod = trialOrder.length > 0 ? methods[trialOrder[currentTrialIndex]] : null
 
-  // Start study
+  // Start study – go straight to first trial (no registration step)
   const startStudy = () => {
-    setStudyData({ ...studyData, startTime: Date.now() })
-    setCurrentScreen("registration")
-  }
-
-  // Register password
-  const registerPassword = () => {
-    if (registerValue.length <= 15) return
-    setTargetPassword(registerValue)
     const order = shuffleArray([0, 1, 2, 3])
     setTrialOrder(order)
     setCurrentTrialIndex(0)
+    const firstPw = pickRandomPassword([])
+    setCurrentTargetPassword(firstPw)
+    setUsedPasswords([firstPw])
+    setStudyData({ startTime: Date.now(), trials: [], feedback: {} })
     setupTrial()
     setCurrentScreen("testing")
   }
 
   // Setup trial
-  const setupTrial = () => {
+  const setupTrial = useCallback(() => {
     setTrialValue("")
     setTrialStartTime(Date.now())
     setFirstKeyTime(null)
@@ -267,15 +288,16 @@ export default function PasswordStudy() {
     setGroupedCursorPos(0)
     setLastCharDisplay("")
     prevTrialValueRef.current = ""
-    renderGroupedDisplay("", 0) // Initialize grouped display
+    renderGroupedDisplay("", 0)
     setTimeout(() => {
-      if (methods[studyData.trials.length]?.id === "GROUPED") {
-        groupedInputRef.current?.focus()
-      } else {
-        trialInputRef.current?.focus()
+      if (groupedInputRef.current) {
+        groupedInputRef.current.focus()
+      } else if (trialInputRef.current) {
+        ;(trialInputRef.current as HTMLElement).focus()
       }
     }, 100)
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleTrialKeydown = (e: React.KeyboardEvent<HTMLInputElement | HTMLDivElement>) => {
     // Handle Enter to submit
@@ -318,7 +340,7 @@ export default function PasswordStudy() {
       } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
         newValue = newValue.slice(0, groupedCursorPos) + e.key + newValue.slice(groupedCursorPos)
         newCursor = groupedCursorPos + 1
-        if (newValue.length > targetPassword.length) {
+        if (newValue.length > currentTargetPassword.length) {
           setOverflowDetected(true)
         }
       }
@@ -332,38 +354,38 @@ export default function PasswordStudy() {
   const handleTrialChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (currentMethod?.id === "LASTCHAR") {
       const displayValue = e.target.value
-      
+
       // Clear any existing timeout
       if (lastCharTimeout) clearTimeout(lastCharTimeout)
-      
+
       // Determine if we're adding or removing characters
       const prevLength = prevTrialValueRef.current.length
       const currentLength = displayValue.length
-      
+
       if (currentLength < prevLength) {
         // Deletion - remove from actual value
         const newValue = trialValue.slice(0, -1)
         setTrialValue(newValue)
-        setLastCharDisplay("•".repeat(newValue.length))
+        setLastCharDisplay("\u2022".repeat(newValue.length))
       } else if (currentLength > prevLength) {
         // Addition - get the new character and add to actual value
         const newChar = displayValue.slice(-1)
         const newValue = trialValue + newChar
         setTrialValue(newValue)
-        
+
         // Show last character briefly
-        const masked = "•".repeat(newValue.length - 1) + newChar
+        const masked = "\u2022".repeat(newValue.length - 1) + newChar
         setLastCharDisplay(masked)
 
         const timeout = setTimeout(() => {
-          setLastCharDisplay("•".repeat(newValue.length))
+          setLastCharDisplay("\u2022".repeat(newValue.length))
         }, 400)
         setLastCharTimeout(timeout)
       }
-      
+
       prevTrialValueRef.current = displayValue
-      
-      if (trialValue.length > targetPassword.length) {
+
+      if (trialValue.length > currentTargetPassword.length) {
         setOverflowDetected(true)
       }
     } else if (currentMethod?.id === "GROUPED") {
@@ -373,39 +395,41 @@ export default function PasswordStudy() {
       // For STANDARD and CHROMA methods
       const value = e.target.value
       setTrialValue(value)
-      
-      if (value.length > targetPassword.length) {
+
+      if (value.length > currentTargetPassword.length) {
         setOverflowDetected(true)
       }
     }
   }
 
   // Build grouped display data as React state
-  const [groupedDisplayChars, setGroupedDisplayChars] = useState<Array<{type: 'char' | 'space' | 'cursor'}>>([{type: 'cursor'}])
+  const [groupedDisplayChars, setGroupedDisplayChars] = useState<
+    Array<{ type: "char" | "space" | "cursor" }>
+  >([{ type: "cursor" }])
 
   // Render grouped display with cursor at position
   const renderGroupedDisplay = (value: string, cursorPos: number) => {
-    const chars: Array<{type: 'char' | 'space' | 'cursor'}> = []
-    
+    const chars: Array<{ type: "char" | "space" | "cursor" }> = []
+
     if (value.length === 0) {
-      chars.push({type: 'cursor'})
+      chars.push({ type: "cursor" })
       setGroupedDisplayChars(chars)
       return
     }
 
     for (let i = 0; i < value.length; i++) {
       if (i === cursorPos) {
-        chars.push({type: 'cursor'})
+        chars.push({ type: "cursor" })
       }
-      chars.push({type: 'char'})
+      chars.push({ type: "char" })
       if ((i + 1) % 4 === 0 && i < value.length - 1) {
-        chars.push({type: 'space'})
+        chars.push({ type: "space" })
       }
     }
     if (cursorPos >= value.length) {
-      chars.push({type: 'cursor'})
+      chars.push({ type: "cursor" })
     }
-    
+
     setGroupedDisplayChars(chars)
   }
 
@@ -425,13 +449,12 @@ export default function PasswordStudy() {
       }
     })
   }, [groupedDisplayChars])
-  
 
   // Submit trial
   const submitTrial = () => {
     const endTime = Date.now()
     const actualValue = currentMethod?.id === "GROUPED" ? groupedRealValue : trialValue
-    const success = actualValue === targetPassword
+    const success = actualValue === currentTargetPassword
 
     let avgInterval = null
     if (keystrokeTimestamps.length > 1) {
@@ -450,6 +473,8 @@ export default function PasswordStudy() {
       averageKeystrokeInterval: avgInterval,
       backspaceCount,
       overflowDetected,
+      targetPassword: currentTargetPassword,
+      typedPassword: actualValue,
     }
 
     setStudyData({ ...studyData, trials: [...studyData.trials, trialData] })
@@ -460,7 +485,12 @@ export default function PasswordStudy() {
   // Next trial
   const nextTrial = () => {
     if (currentTrialIndex < 3) {
-      setCurrentTrialIndex(currentTrialIndex + 1)
+      const nextIdx = currentTrialIndex + 1
+      setCurrentTrialIndex(nextIdx)
+      // Pick a new random target password for the next condition
+      const newPw = pickRandomPassword(usedPasswords)
+      setCurrentTargetPassword(newPw)
+      setUsedPasswords([...usedPasswords, newPw])
       setupTrial()
       setCurrentScreen("testing")
     } else {
@@ -480,8 +510,8 @@ export default function PasswordStudy() {
     }
   }
 
-  // Download results and send to Supabase
-  const downloadResults = async () => {
+  // Download results (local-only, no Supabase)
+  const downloadResults = () => {
     const finalData = {
       device_type: deviceType,
       trials: studyData.trials,
@@ -494,37 +524,32 @@ export default function PasswordStudy() {
       endTime: Date.now(),
     }
 
-    try {
-      const { error } = await supabase.from("UserstudyDaten").insert({
-        data: finalData,
-        created_at: new Date().toISOString(),
-      })
+    // Download as JSON file
+    const blob = new Blob([JSON.stringify(finalData, null, 2)], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `study-results-${Date.now()}.json`
+    a.click()
+    URL.revokeObjectURL(url)
 
-      if (error) {
-        console.error("Supabase error:", error)
-      } else {
-        localStorage.setItem("hasCompletedStudy", "true")
-      }
-    } catch (err) {
-      console.error("Failed to send to Supabase:", err)
-    }
-
+    localStorage.setItem("hasCompletedStudy", "true")
     setCurrentScreen("thanks")
   }
 
   // Target colors for Chroma Hash
-  const targetColors = hashToColors(targetPassword)
+  const targetColors = hashToColors(currentTargetPassword)
   const currentColors = hashToColors(currentMethod?.id === "GROUPED" ? groupedRealValue : trialValue)
 
   const canFinish =
     preferredMethod !== null &&
     hatedMethod !== null &&
     Object.values(methodRatings).every(
-      (r) => r.visibility !== null && r.error_recovery !== null && r.security !== null && r.distraction !== null
+      (r) =>
+        r.visibility !== null && r.error_recovery !== null && r.security !== null && r.distraction !== null
     )
 
-  // Common input classes with overflow guarantee
-  // w-[140px] ist fix für alle Test-Felder
+  // Common input classes
   const inputBaseClasses =
     "w-[140px] bg-zinc-900/80 border border-zinc-700/50 rounded-xl px-5 py-4 font-mono text-2xl text-white placeholder:text-zinc-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 transition-all duration-200"
 
@@ -534,7 +559,7 @@ export default function PasswordStudy() {
       <div className="fixed inset-0 bg-gradient-to-br from-zinc-950 via-zinc-950 to-zinc-950 pointer-events-none" />
 
       {checkingCompletion ? (
-        <div className="relative z-10 text-zinc-500 text-sm">Laden...</div>
+        <div className="relative z-10 text-zinc-500 text-sm">{"Laden..."}</div>
       ) : hasCompletedStudy ? (
         <div className="relative z-10 w-full max-w-md">
           <div className="bg-zinc-900/80 border border-zinc-800/50 rounded-3xl shadow-2xl p-8 text-center space-y-6">
@@ -542,403 +567,198 @@ export default function PasswordStudy() {
               <Shield className="w-8 h-8 text-emerald-400" />
             </div>
             <div className="space-y-2">
-              <h1 className="text-2xl font-bold text-white">Vielen Dank!</h1>
+              <h1 className="text-2xl font-bold text-white">{"Vielen Dank!"}</h1>
               <p className="text-zinc-400 leading-relaxed text-sm">
-                Sie haben diese Studie bereits abgeschlossen. Eine mehrfache Teilnahme ist nicht möglich.
+                {"Sie haben diese Studie bereits abgeschlossen. Eine mehrfache Teilnahme ist nicht möglich."}
               </p>
             </div>
             <div className="pt-2 border-t border-zinc-800">
               <p className="text-zinc-600 text-xs">
-                Universität Bonn - Institut für Informatik
+                {"Universität Bonn - Institut für Informatik"}
               </p>
             </div>
           </div>
         </div>
       ) : (
-      <>
-      <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-cyan-950/20 via-transparent to-transparent pointer-events-none"/>
+        <>
+          <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-cyan-950/20 via-transparent to-transparent pointer-events-none" />
 
-      <div className="relative w-full max-w-lg">
-        {/* Glassmorphism card */}
-        <div className="relative bg-zinc-900/70 backdrop-blur-2xl border border-zinc-800/80 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/50">
-          {/* Subtle glow effect */}
-          <div className="absolute -inset-px bg-gradient-to-br from-cyan-500/10 via-transparent to-blue-500/10 rounded-3xl pointer-events-none" />
+          <div className="relative w-full max-w-lg">
+            {/* Glassmorphism card */}
+            <div className="relative bg-zinc-900/70 backdrop-blur-2xl border border-zinc-800/80 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/50">
+              {/* Subtle glow effect */}
+              <div className="absolute -inset-px bg-gradient-to-br from-cyan-500/10 via-transparent to-blue-500/10 rounded-3xl pointer-events-none" />
 
-          <div className="relative">
-            {/* Instructions / Consent Screen */}
-            {currentScreen === "instructions" && (
-              <AnimatedScreen className="space-y-6">
-                <div className="text-center space-y-3">
-                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500/10 border border-cyan-500/20 rounded-full text-cyan-400 text-sm font-medium">
-                    <Lock className="w-4 h-4" />
-                    HCI-Forschungsstudie
-                  </div>
-                  <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Einwilligungserklärung</h1>
-                  <p className="text-zinc-400 text-sm">Universität Bonn - Institut für Informatik</p>
-                </div>
-
-                <div className="space-y-4 text-sm text-zinc-300 leading-relaxed">
-                  <div className="bg-zinc-800/50 border border-zinc-700/30 rounded-2xl p-4 space-y-3">
-                    <h2 className="font-semibold text-white">Ziel der Studie</h2>
-                    <p>
-                      Diese Studie untersucht verschiedene Methoden zur Passwort-Eingabe im Rahmen einer akademischen
-                      Forschungsarbeit. Wir möchten verstehen, welche Eingabemethoden als benutzerfreundlich und sicher
-                      empfunden werden.
-                    </p>
-                  </div>
-
-                  <div className="bg-zinc-800/50 border border-zinc-700/30 rounded-2xl p-4 space-y-3">
-                    <h2 className="font-semibold text-white">Was Sie tun werden</h2>
-                    <ul className="space-y-2">
-                      {[
-                        { id: 1, content: <>Ein <strong className="text-cyan-400">fiktives</strong> Passwort mit mehr als 15 Zeichen erstellen</> },
-                        { id: 2, content: <>Dasselbe Passwort 4-mal mit verschiedenen Eingabe-Designs eingeben</> },
-                        { id: 3, content: <>Kurzes Feedback zu Ihrer Erfahrung geben</> },
-                      ].map((item) => (
-                        <li key={item.id} className="flex items-start gap-2">
-                          <span className="text-cyan-400 mt-0.5">•</span>
-                          <span>{item.content}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <p className="text-zinc-500 text-xs mt-2">Geschätzte Dauer: 3-5 Minuten</p>
-                  </div>
-
-                  <div className="bg-zinc-800/50 border border-zinc-700/30 rounded-2xl p-4 space-y-3">
-                    <h2 className="font-semibold text-white">Datenschutzhinweis (DSGVO)</h2>
-                    <p>
-                      Ihre Daten werden <strong className="text-emerald-400">vollständig anonymisiert</strong> und sicher in
-                      einer Datenbank gespeichert. Es werden keine personenbezogenen Daten erhoben. Die erhobenen Daten
-                      (Tastaturanschläge, Zeitmessungen, Feedback) dienen ausschließlich der wissenschaftlichen Auswertung
-                      an der Universität Bonn.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4">
-                  <p className="text-amber-200/90 font-semibold text-sm leading-relaxed">
-                    Wichtig: Verwenden Sie KEIN echtes Passwort! Bitte erfinden Sie ein neues Passwort für diese Studie.
-                  </p>
-                </div>
-
-                {/* Consent Checkbox */}
-                <button
-                  type="button"
-                  onClick={() => setConsentChecked(!consentChecked)}
-                  className="w-full flex items-start gap-3 p-4 bg-zinc-800/50 border border-zinc-700/50 rounded-2xl hover:bg-zinc-800/70 transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
-                  aria-pressed={consentChecked}
-                >
-                  <div
-                    className={`flex-shrink-0 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all duration-200 ${
-                      consentChecked
-                        ? "bg-gradient-to-br from-cyan-500 to-blue-600 border-cyan-500"
-                        : "border-zinc-600 bg-zinc-900/50"
-                    }`}
-                  >
-                    {consentChecked && <Check className="w-4 h-4 text-white" />}
-                  </div>
-                  <span className="text-sm text-zinc-300 leading-relaxed">
-                    Ich verstehe, dass meine Teilnahme <strong className="text-white">freiwillig</strong> und{" "}
-                    <strong className="text-white">anonym</strong> ist. Ich werde{" "}
-                    <strong className="text-amber-300">KEIN echtes Passwort</strong> verwenden. Ich stimme zu, dass meine
-                    anonymisierten Daten für akademische Forschungszwecke verwendet werden dürfen.
-                  </span>
-                </button>
-
-                <button
-                  onClick={startStudy}
-                  disabled={!consentChecked}
-                  className="w-full min-h-[48px] bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 disabled:from-zinc-800 disabled:to-zinc-800 disabled:text-zinc-600 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/30 disabled:shadow-none hover:scale-[1.02] active:scale-[0.98] disabled:scale-100 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 flex items-center justify-center gap-2"
-                >
-                  Studie beginnen
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-              </AnimatedScreen>
-            )}
-
-            {/* Registration Screen */}
-            {currentScreen === "registration" && (
-              <AnimatedScreen className="space-y-6">
-                <div className="text-center space-y-2">
-                  <h1 className="text-2xl font-bold text-white tracking-tight">Erstellen Sie Ihr Passwort</h1>
-                  <p className="text-zinc-400 text-sm leading-relaxed">
-                    Geben Sie ein Passwort ein, das Sie sich merken können. Es muss länger als 15 Zeichen sein.
-                  </p>
-                </div>
-
-                <div className="space-y-3">
-                  <label
-                    htmlFor="register-password"
-                    className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider text-center"
-                  >
-                    Ihr Test-Passwort
-                  </label>
-                  <div className="flex justify-center">
-                    <input
-                      /* Type text mit security disc um Autocomplete zu verhindern */
-                      type="text"
-                      id="register-input-field"
-                      name="study_reg_field_xy"
-                      style={{ WebkitTextSecurity: 'disc' }}
-                      value={registerValue}
-                      onChange={(e) => setRegisterValue(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && registerValue.length > 15 && registerPassword()}
-                      /* Registration ist breit (!w-full), Test-Felder sind eng */
-                      className={inputBaseClasses + " !w-full !max-w-md"}
-                      placeholder="Mindestens 16 Zeichen eingeben..."
-                      autoComplete="off"
-                      autoCorrect="off"
-                      autoCapitalize="off"
-                      spellCheck="false"
-                      data-lpignore="true"
-                      data-form-type="other"
-                      aria-describedby="password-length"
-                    />
-                  </div>
-                  <div
-                    id="password-length"
-                    className={`text-sm font-medium transition-colors text-center ${
-                      registerValue.length > 15 ? "text-emerald-400" : "text-zinc-500"
-                    }`}
-                  >
-                    {registerValue.length} / 16+ Zeichen
-                    {registerValue.length > 15 && <span className="ml-2">✓</span>}
-                  </div>
-                </div>
-
-                <button
-                  onClick={registerPassword}
-                  disabled={registerValue.length <= 15}
-                  className="w-full min-h-[48px] bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 disabled:from-zinc-800 disabled:to-zinc-800 disabled:text-zinc-600 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/30 disabled:shadow-none hover:scale-[1.02] active:scale-[0.98] disabled:scale-100 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 flex items-center justify-center gap-2"
-                >
-                  Weiter
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-              </AnimatedScreen>
-            )}
-
-            {/* Testing Screen */}
-            {currentScreen === "testing" && currentMethod && (
-              <AnimatedScreen key={currentTrialIndex} className="space-y-6">
-                {/* Progress dots */}
-                <div className="flex justify-center gap-2" role="progressbar" aria-valuenow={currentTrialIndex + 1} aria-valuemin={1} aria-valuemax={4}>
-                  {[0, 1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      className={`h-2 rounded-full transition-all duration-500 ${
-                        i < currentTrialIndex
-                          ? "w-8 bg-emerald-500"
-                          : i === currentTrialIndex
-                            ? "w-12 bg-gradient-to-r from-cyan-500 to-blue-500"
-                            : "w-2 bg-zinc-700"
-                      }`}
-                    />
-                  ))}
-                </div>
-
-                <div className="text-center space-y-3">
-                  <h1 className="text-2xl font-bold text-white tracking-tight">Geben Sie Ihr Passwort erneut ein</h1>
-                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500/10 border border-cyan-500/20 rounded-xl text-cyan-400 text-sm font-medium">
-                    {currentMethod.icon}
-                    Methode {currentTrialIndex + 1}/4: {currentMethod.name}
-                  </div>
-                </div>
-
-                <div className="bg-zinc-800/50 border border-zinc-700/30 rounded-2xl p-4">
-                  <p className="text-zinc-400 text-sm leading-relaxed">{currentMethod.description}</p>
-                </div>
-
-                <div className="space-y-4">
-                  {/* LABEL STATT PLACEHOLDER: Löst das Overflow Problem der Anweisung */}
-                  <label
-                    htmlFor="trial-input"
-                    className="block text-sm font-medium text-zinc-400 text-center mb-2"
-                  >
-                    Passwort hier eingeben:
-                  </label>
-
-                  <div className="flex justify-center items-center">
-                    {currentMethod.id === "STANDARD" && (
-                      <input
-                        ref={trialInputRef}
-                        /* TRICK: type text + webkit security disc verhindert "Passwort speichern" Dialoge */
-                        type="text"
-                        style={{ WebkitTextSecurity: 'disc' }}
-                        id="trial-input-standard"
-                        name="study_field_std_1"
-                        value={trialValue}
-                        onChange={handleTrialChange}
-                        onKeyDown={handleTrialKeydown}
-                        className={inputBaseClasses}
-                        placeholder="..."
-                        autoComplete="off"
-                        autoCorrect="off"
-                        autoCapitalize="off"
-                        spellCheck="false"
-                        data-lpignore="true"
-                        data-form-type="other"
-                      />
-                    )}
-
-                    {currentMethod.id === "GROUPED" && (
-                      <div className="relative">
-                        {/* Hidden input that captures keyboard on both desktop and mobile */}
-                        <input
-                          ref={groupedInputRef}
-                          type="text"
-                          id="trial-input-grouped"
-                          name="study_field_grouped_2"
-                          value=""
-                          onKeyDown={handleTrialKeydown}
-                          onBeforeInput={(e: React.CompositionEvent<HTMLInputElement>) => {
-                            // Handle mobile keyboard input
-                            const nativeEvent = e.nativeEvent as InputEvent
-                            e.preventDefault()
-                            
-                            const now = Date.now()
-                            if (!firstKeyTime) setFirstKeyTime(now)
-                            setKeystrokeTimestamps([...keystrokeTimestamps, now])
-                            
-                            let newValue = groupedRealValue
-                            let newCursor = groupedCursorPos
-                            
-                            if (nativeEvent.inputType === 'deleteContentBackward') {
-                              // Backspace
-                              setBackspaceCount(backspaceCount + 1)
-                              if (groupedCursorPos > 0) {
-                                newValue = newValue.slice(0, groupedCursorPos - 1) + newValue.slice(groupedCursorPos)
-                                newCursor = groupedCursorPos - 1
-                              }
-                            } else if (nativeEvent.inputType === 'deleteContentForward') {
-                              // Delete
-                              if (groupedCursorPos < newValue.length) {
-                                newValue = newValue.slice(0, groupedCursorPos) + newValue.slice(groupedCursorPos + 1)
-                              }
-                            } else if (nativeEvent.data && nativeEvent.data.length === 1) {
-                              // Character input
-                              newValue = newValue.slice(0, groupedCursorPos) + nativeEvent.data + newValue.slice(groupedCursorPos)
-                              newCursor = groupedCursorPos + 1
-                              if (newValue.length > targetPassword.length) {
-                                setOverflowDetected(true)
-                              }
-                            }
-                            
-                            setGroupedRealValue(newValue)
-                            setGroupedCursorPos(newCursor)
-                            renderGroupedDisplay(newValue, newCursor)
-                            
-                            // Keep input empty
-                            const target = e.target as HTMLInputElement
-                            setTimeout(() => { target.value = "" }, 0)
-                          }}
-                          onChange={() => {}}
-                          className="absolute inset-0 opacity-0 cursor-text"
-                          style={{ caretColor: 'transparent' }}
-                          autoComplete="off"
-                          autoCorrect="off"
-                          autoCapitalize="off"
-                          spellCheck="false"
-                          data-lpignore="true"
-                          data-form-type="other"
-                          aria-label="Passwort mit gruppierter Maskierung eingeben"
-                        />
-                        {/* Visible display div */}
-                        <div
-                          ref={(el) => {
-                            (trialInputRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-                            (groupedContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-                          }}
-                          onClick={() => {
-                            // Focus the hidden input on click (both desktop and mobile)
-                            if (groupedInputRef.current) {
-                              groupedInputRef.current.focus()
-                            }
-                          }}
-                          onTouchStart={() => {
-                            // Explicitly handle touch events for mobile
-                            if (groupedInputRef.current) {
-                              groupedInputRef.current.focus()
-                            }
-                          }}
-                          className={`${inputBaseClasses} flex items-center overflow-x-auto whitespace-nowrap cursor-text relative`}
-                          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-                        >
-                          <span style={{ display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
-                            {groupedDisplayChars.map((item, i) => {
-                              if (item.type === 'cursor') {
-                                return (
-                                  <span
-                                    key={`c-${i}`}
-                                    ref={groupedCursorRef}
-                                    className="animate-blink"
-                                    style={{
-                                      display: 'inline-block',
-                                      width: 2,
-                                      height: '1.5em',
-                                      background: 'linear-gradient(to bottom, #06b6d4, #3b82f6)',
-                                      marginLeft: 2,
-                                      verticalAlign: 'middle',
-                                      flexShrink: 0,
-                                    }}
-                                  />
-                                )
-                              }
-                              if (item.type === 'space') {
-                                return (
-                                  <span
-                                    key={`s-${i}`}
-                                    style={{ display: 'inline-block', width: '0.75em', flexShrink: 0 }}
-                                  />
-                                )
-                              }
-                              return (
-                                <span
-                                  key={`d-${i}`}
-                                  style={{ display: 'inline-block', fontSize: '1.5rem', flexShrink: 0 }}
-                                >
-                                  &bull;
-                                </span>
-                              )
-                            })}
-                          </span>
-                        </div>
+              <div className="relative">
+                {/* Instructions / Consent Screen */}
+                {currentScreen === "instructions" && (
+                  <AnimatedScreen className="space-y-6">
+                    <div className="text-center space-y-3">
+                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500/10 border border-cyan-500/20 rounded-full text-cyan-400 text-sm font-medium">
+                        <Lock className="w-4 h-4" />
+                        {"HCI-Forschungsstudie"}
                       </div>
-                    )}
-                    {currentMethod.id === "LASTCHAR" && (
-                      <input
-                        ref={trialInputRef}
-                        type="text"
-                        id="trial-input-last"
-                        name="study_field_last_3"
-                        value={lastCharDisplay || trialValue}
-                        onChange={handleTrialChange}
-                        onKeyDown={handleTrialKeydown}
-                        className={inputBaseClasses}
-                        placeholder="..."
-                        autoComplete="off"
-                        autoCorrect="off"
-                        autoCapitalize="off"
-                        spellCheck="false"
-                        data-lpignore="true"
-                        data-form-type="other"
-                        style={{ 
-                          caretColor: 'white',
-                          userSelect: 'text',
-                          WebkitUserSelect: 'text'
-                        }}
-                      />
-                    )}
+                      <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                        {"Einwilligungserklärung"}
+                      </h1>
+                      <p className="text-zinc-400 text-sm">{"Universität Bonn - Institut für Informatik"}</p>
+                    </div>
 
-                    {currentMethod.id === "CHROMA" && (
-                      <div className="space-y-4 w-full flex flex-col items-center">
-                        <div className="flex items-center justify-center gap-3">
+                    <div className="space-y-4 text-sm text-zinc-300 leading-relaxed">
+                      <div className="bg-zinc-800/50 border border-zinc-700/30 rounded-2xl p-4 space-y-3">
+                        <h2 className="font-semibold text-white">{"Ziel der Studie"}</h2>
+                        <p>
+                          {"Diese Studie untersucht verschiedene Methoden zur Passwort-Eingabe im Rahmen einer akademischen Forschungsarbeit. Wir möchten verstehen, welche Eingabemethoden als benutzerfreundlich und sicher empfunden werden."}
+                        </p>
+                      </div>
+
+                      <div className="bg-zinc-800/50 border border-zinc-700/30 rounded-2xl p-4 space-y-3">
+                        <h2 className="font-semibold text-white">{"Was Sie tun werden"}</h2>
+                        <ul className="space-y-2">
+                          {[
+                            {
+                              id: 1,
+                              content: (
+                                <>
+                                  {"Ein "}
+                                  <strong className="text-cyan-400">{"vorgegebenes"}</strong>
+                                  {" Ziel-Passwort mit 4 verschiedenen Eingabe-Designs abtippen"}
+                                </>
+                              ),
+                            },
+                            {
+                              id: 2,
+                              content: <>{"Für jede Methode wird ein neues Ziel-Passwort angezeigt"}</>,
+                            },
+                            { id: 3, content: <>{"Kurzes Feedback zu Ihrer Erfahrung geben"}</> },
+                          ].map((item) => (
+                            <li key={item.id} className="flex items-start gap-2">
+                              <span className="text-cyan-400 mt-0.5">{"•"}</span>
+                              <span>{item.content}</span>
+                            </li>
+                          ))}
+                        </ul>
+                        <p className="text-zinc-500 text-xs mt-2">{"Geschätzte Dauer: 3-5 Minuten"}</p>
+                      </div>
+
+                      <div className="bg-zinc-800/50 border border-zinc-700/30 rounded-2xl p-4 space-y-3">
+                        <h2 className="font-semibold text-white">{"Datenschutzhinweis (DSGVO)"}</h2>
+                        <p>
+                          {"Ihre Daten werden "}
+                          <strong className="text-emerald-400">{"vollständig anonymisiert"}</strong>
+                          {" und sicher gespeichert. Es werden keine personenbezogenen Daten erhoben. Die erhobenen Daten (Tastaturanschläge, Zeitmessungen, Feedback) dienen ausschließlich der wissenschaftlichen Auswertung an der Universität Bonn."}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Consent Checkbox */}
+                    <button
+                      type="button"
+                      onClick={() => setConsentChecked(!consentChecked)}
+                      className="w-full flex items-start gap-3 p-4 bg-zinc-800/50 border border-zinc-700/50 rounded-2xl hover:bg-zinc-800/70 transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
+                      aria-pressed={consentChecked}
+                    >
+                      <div
+                        className={`flex-shrink-0 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all duration-200 ${
+                          consentChecked
+                            ? "bg-gradient-to-br from-cyan-500 to-blue-600 border-cyan-500"
+                            : "border-zinc-600 bg-zinc-900/50"
+                        }`}
+                      >
+                        {consentChecked && <Check className="w-4 h-4 text-white" />}
+                      </div>
+                      <span className="text-sm text-zinc-300 leading-relaxed">
+                        {"Ich verstehe, dass meine Teilnahme "}
+                        <strong className="text-white">{"freiwillig"}</strong>
+                        {" und "}
+                        <strong className="text-white">{"anonym"}</strong>
+                        {" ist. Ich stimme zu, dass meine anonymisierten Daten für akademische Forschungszwecke verwendet werden dürfen."}
+                      </span>
+                    </button>
+
+                    <button
+                      onClick={startStudy}
+                      disabled={!consentChecked}
+                      className="w-full min-h-[48px] bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 disabled:from-zinc-800 disabled:to-zinc-800 disabled:text-zinc-600 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/30 disabled:shadow-none hover:scale-[1.02] active:scale-[0.98] disabled:scale-100 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 flex items-center justify-center gap-2"
+                    >
+                      {"Studie beginnen"}
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  </AnimatedScreen>
+                )}
+
+                {/* Testing Screen */}
+                {currentScreen === "testing" && currentMethod && (
+                  <AnimatedScreen key={currentTrialIndex} className="space-y-6">
+                    {/* Progress dots */}
+                    <div
+                      className="flex justify-center gap-2"
+                      role="progressbar"
+                      aria-valuenow={currentTrialIndex + 1}
+                      aria-valuemin={1}
+                      aria-valuemax={4}
+                    >
+                      {[0, 1, 2, 3].map((i) => (
+                        <div
+                          key={i}
+                          className={`h-2 rounded-full transition-all duration-500 ${
+                            i < currentTrialIndex
+                              ? "w-8 bg-emerald-500"
+                              : i === currentTrialIndex
+                                ? "w-12 bg-gradient-to-r from-cyan-500 to-blue-500"
+                                : "w-2 bg-zinc-700"
+                          }`}
+                        />
+                      ))}
+                    </div>
+
+                    <div className="text-center space-y-3">
+                      <h1 className="text-2xl font-bold text-white tracking-tight">
+                        {"Tippen Sie das Ziel-Passwort ab"}
+                      </h1>
+                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500/10 border border-cyan-500/20 rounded-xl text-cyan-400 text-sm font-medium">
+                        {currentMethod.icon}
+                        {"Methode "}
+                        {currentTrialIndex + 1}
+                        {"/4: "}
+                        {currentMethod.name}
+                      </div>
+                    </div>
+
+                    <div className="bg-zinc-800/50 border border-zinc-700/30 rounded-2xl p-4">
+                      <p className="text-zinc-400 text-sm leading-relaxed">{currentMethod.description}</p>
+                    </div>
+
+                    {/* ── Target Password Badge (unselectable) ── */}
+                    <div className="flex flex-col items-center gap-2">
+                      <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-1.5">
+                        <Copy className="w-3.5 h-3.5" />
+                        {"Ziel-Passwort"}
+                      </span>
+                      <div
+                        className="select-none bg-zinc-800/80 border-2 border-dashed border-cyan-500/40 rounded-xl px-6 py-3 font-mono text-xl tracking-widest text-cyan-300"
+                        aria-label="Ziel-Passwort zum Abtippen"
+                      >
+                        {currentTargetPassword}
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <label
+                        htmlFor="trial-input"
+                        className="block text-sm font-medium text-zinc-400 text-center mb-2"
+                      >
+                        {"Passwort hier eingeben:"}
+                      </label>
+
+                      <div className="flex justify-center items-center">
+                        {currentMethod.id === "STANDARD" && (
                           <input
                             ref={trialInputRef}
-                            /* TRICK: type text + webkit security disc */
                             type="text"
-                            style={{ WebkitTextSecurity: 'disc' }}
-                            id="trial-input-chroma"
-                            name="study_field_chr_4"
+                            style={{ WebkitTextSecurity: "disc" }}
+                            id="trial-input-standard"
+                            name="study_field_std_1"
                             value={trialValue}
                             onChange={handleTrialChange}
                             onKeyDown={handleTrialKeydown}
@@ -950,302 +770,546 @@ export default function PasswordStudy() {
                             spellCheck="false"
                             data-lpignore="true"
                             data-form-type="other"
+                            {...antiCheatProps}
                           />
-                          <div className="flex flex-col gap-1" aria-label="Aktuelle Farbcodes">
-                            {currentColors.map((color, i) => (
-                              <div
-                                key={i}
-                                className="w-8 h-2.5 rounded-full transition-all duration-300 ease-out shadow-lg"
+                        )}
+
+                        {currentMethod.id === "GROUPED" && (
+                          <div className="relative">
+                            {/* Hidden input that captures keyboard on both desktop and mobile */}
+                            <input
+                              ref={groupedInputRef}
+                              type="text"
+                              id="trial-input-grouped"
+                              name="study_field_grouped_2"
+                              value=""
+                              onKeyDown={handleTrialKeydown}
+                              onBeforeInput={(e: React.CompositionEvent<HTMLInputElement>) => {
+                                const nativeEvent = e.nativeEvent as InputEvent
+                                e.preventDefault()
+
+                                const now = Date.now()
+                                if (!firstKeyTime) setFirstKeyTime(now)
+                                setKeystrokeTimestamps([...keystrokeTimestamps, now])
+
+                                let newValue = groupedRealValue
+                                let newCursor = groupedCursorPos
+
+                                if (nativeEvent.inputType === "deleteContentBackward") {
+                                  setBackspaceCount(backspaceCount + 1)
+                                  if (groupedCursorPos > 0) {
+                                    newValue =
+                                      newValue.slice(0, groupedCursorPos - 1) +
+                                      newValue.slice(groupedCursorPos)
+                                    newCursor = groupedCursorPos - 1
+                                  }
+                                } else if (nativeEvent.inputType === "deleteContentForward") {
+                                  if (groupedCursorPos < newValue.length) {
+                                    newValue =
+                                      newValue.slice(0, groupedCursorPos) +
+                                      newValue.slice(groupedCursorPos + 1)
+                                  }
+                                } else if (nativeEvent.data && nativeEvent.data.length === 1) {
+                                  newValue =
+                                    newValue.slice(0, groupedCursorPos) +
+                                    nativeEvent.data +
+                                    newValue.slice(groupedCursorPos)
+                                  newCursor = groupedCursorPos + 1
+                                  if (newValue.length > currentTargetPassword.length) {
+                                    setOverflowDetected(true)
+                                  }
+                                }
+
+                                setGroupedRealValue(newValue)
+                                setGroupedCursorPos(newCursor)
+                                renderGroupedDisplay(newValue, newCursor)
+
+                                const target = e.target as HTMLInputElement
+                                setTimeout(() => {
+                                  target.value = ""
+                                }, 0)
+                              }}
+                              onChange={() => {}}
+                              className="absolute inset-0 opacity-0 cursor-text"
+                              style={{ caretColor: "transparent" }}
+                              autoComplete="off"
+                              autoCorrect="off"
+                              autoCapitalize="off"
+                              spellCheck="false"
+                              data-lpignore="true"
+                              data-form-type="other"
+                              aria-label="Passwort mit gruppierter Maskierung eingeben"
+                              {...antiCheatProps}
+                            />
+                            {/* Visible display div */}
+                            <div
+                              ref={(el) => {
+                                ;(
+                                  trialInputRef as React.MutableRefObject<HTMLDivElement | null>
+                                ).current = el
+                                ;(
+                                  groupedContainerRef as React.MutableRefObject<HTMLDivElement | null>
+                                ).current = el
+                              }}
+                              onClick={() => {
+                                if (groupedInputRef.current) {
+                                  groupedInputRef.current.focus()
+                                }
+                              }}
+                              onTouchStart={() => {
+                                if (groupedInputRef.current) {
+                                  groupedInputRef.current.focus()
+                                }
+                              }}
+                              className={`${inputBaseClasses} flex items-center overflow-x-auto whitespace-nowrap cursor-text relative`}
+                              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                            >
+                              <span
                                 style={{
-                                  backgroundColor: color,
-                                  boxShadow: `0 0 10px ${color}50`,
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  whiteSpace: "nowrap",
                                 }}
-                              />
-                            ))}
+                              >
+                                {groupedDisplayChars.map((item, i) => {
+                                  if (item.type === "cursor") {
+                                    return (
+                                      <span
+                                        key={`c-${i}`}
+                                        ref={groupedCursorRef}
+                                        className="animate-blink"
+                                        style={{
+                                          display: "inline-block",
+                                          width: 2,
+                                          height: "1.5em",
+                                          background:
+                                            "linear-gradient(to bottom, #06b6d4, #3b82f6)",
+                                          marginLeft: 2,
+                                          verticalAlign: "middle",
+                                          flexShrink: 0,
+                                        }}
+                                      />
+                                    )
+                                  }
+                                  if (item.type === "space") {
+                                    return (
+                                      <span
+                                        key={`s-${i}`}
+                                        style={{
+                                          display: "inline-block",
+                                          width: "0.75em",
+                                          flexShrink: 0,
+                                        }}
+                                      />
+                                    )
+                                  }
+                                  return (
+                                    <span
+                                      key={`d-${i}`}
+                                      style={{
+                                        display: "inline-block",
+                                        fontSize: "1.5rem",
+                                        flexShrink: 0,
+                                      }}
+                                    >
+                                      {"\u2022"}
+                                    </span>
+                                  )
+                                })}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-3 justify-center">
-                          <span className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Ziel:</span>
-                          <div className="flex gap-2" aria-label="Ziel-Farbcodes">
-                            {targetColors.map((color, i) => (
-                              <div
-                                key={i}
-                                className="w-8 h-2.5 rounded-full border border-zinc-600/50"
-                                style={{ backgroundColor: color }}
+                        )}
+                        {currentMethod.id === "LASTCHAR" && (
+                          <input
+                            ref={trialInputRef}
+                            type="text"
+                            id="trial-input-last"
+                            name="study_field_last_3"
+                            value={lastCharDisplay || trialValue}
+                            onChange={handleTrialChange}
+                            onKeyDown={handleTrialKeydown}
+                            className={inputBaseClasses}
+                            placeholder="..."
+                            autoComplete="off"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck="false"
+                            data-lpignore="true"
+                            data-form-type="other"
+                            style={{
+                              caretColor: "white",
+                              userSelect: "text",
+                              WebkitUserSelect: "text",
+                            }}
+                            {...antiCheatProps}
+                          />
+                        )}
+
+                        {currentMethod.id === "CHROMA" && (
+                          <div className="space-y-4 w-full flex flex-col items-center">
+                            <div className="flex items-center justify-center gap-3">
+                              <input
+                                ref={trialInputRef}
+                                type="text"
+                                style={{ WebkitTextSecurity: "disc" }}
+                                id="trial-input-chroma"
+                                name="study_field_chr_4"
+                                value={trialValue}
+                                onChange={handleTrialChange}
+                                onKeyDown={handleTrialKeydown}
+                                className={inputBaseClasses}
+                                placeholder="..."
+                                autoComplete="off"
+                                autoCorrect="off"
+                                autoCapitalize="off"
+                                spellCheck="false"
+                                data-lpignore="true"
+                                data-form-type="other"
+                                {...antiCheatProps}
                               />
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <p className="text-xs text-zinc-500 text-center">Drücken Sie Enter oder klicken Sie auf Absenden</p>
-
-                  <button
-                    onClick={submitTrial}
-                    className="w-full min-h-[48px] bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/30 hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
-                  >
-                    Absenden
-                  </button>
-                </div>
-              </AnimatedScreen>
-            )}
-
-            {/* Result Screen */}
-            {currentScreen === "result" && (
-              <AnimatedScreen className="space-y-6 text-center">
-                <div
-                  className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center ${
-                    resultSuccess
-                      ? "bg-emerald-500/20 text-emerald-400"
-                      : "bg-red-500/20 text-red-400"
-                  }`}
-                >
-                  {resultSuccess ? (
-                    <CheckCircle2 className="w-10 h-10" />
-                  ) : (
-                    <XCircle className="w-10 h-10" />
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <h1 className="text-2xl font-bold text-white tracking-tight">
-                    {resultSuccess ? "Erfolgreich!" : "Nicht übereinstimmend"}
-                  </h1>
-                  <p className="text-zinc-400 leading-relaxed">
-                    {resultSuccess
-                      ? "Ihr Passwort wurde korrekt eingegeben."
-                      : "Das eingegebene Passwort stimmte nicht mit dem Original überein."}
-                  </p>
-                </div>
-                <button
-                  onClick={nextTrial}
-                  className="w-full min-h-[48px] bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/30 hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 flex items-center justify-center gap-2"
-                >
-                  {currentTrialIndex < 3 ? "Nächste Aufgabe" : "Zum Feedback"}
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-              </AnimatedScreen>
-            )}
-
-            {/* Feedback Screen */}
-            {currentScreen === "feedback" && (
-              <AnimatedScreen className="space-y-8">
-                <div className="text-center space-y-2">
-                  <h1 className="text-2xl font-bold text-white tracking-tight">Ergebnisse & Feedback</h1>
-                  <p className="text-zinc-400 text-sm leading-relaxed">
-                    Bewerten Sie Ihre Erfahrung mit den verschiedenen Methoden
-                  </p>
-                </div>
-
-                {/* Ranking Section */}
-                <div className="space-y-4">
-                  <div className="space-y-1">
-                    <h2 className="text-lg font-semibold text-white">Ranking</h2>
-                    <p className="text-sm text-zinc-400 leading-relaxed">
-                      Klicken Sie auf die <span className="text-emerald-400 font-semibold">beste</span> Methode (1.
-                      Klick) und dann auf die <span className="text-red-400 font-semibold">schlechteste</span> Methode
-                      (2. Klick)
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {methods.map((method) => {
-                      const isPreferred = preferredMethod === method.id
-                      const isHated = hatedMethod === method.id
-
-                      // Mini preview for each method
-                      const renderPreview = () => {
-                        switch (method.id) {
-                          case "STANDARD":
-                            return (
-                              <div className="flex items-center gap-0.5 mt-2 mb-1">
-                                {Array.from({ length: 8 }).map((_, i) => (
-                                  <span key={i} className="text-zinc-400 text-[10px] leading-none select-none">{"●"}</span>
+                              <div className="flex flex-col gap-1" aria-label="Aktuelle Farbcodes">
+                                {currentColors.map((color, i) => (
+                                  <div
+                                    key={i}
+                                    className="w-8 h-2.5 rounded-full transition-all duration-300 ease-out shadow-lg"
+                                    style={{
+                                      backgroundColor: color,
+                                      boxShadow: `0 0 10px ${color}50`,
+                                    }}
+                                  />
                                 ))}
                               </div>
-                            )
-                          case "GROUPED":
-                            return (
-                              <div className="flex items-center gap-0.5 mt-2 mb-1">
-                                {["●●●●", " ", "●●●●", " ", "●●●●"].map((seg, i) =>
-                                  seg === " " ? (
-                                    <span key={i} className="w-1.5" />
-                                  ) : (
-                                    <span key={i} className="text-zinc-400 text-[10px] leading-none tracking-tight select-none">{seg}</span>
-                                  )
-                                )}
+                            </div>
+                            <div className="flex items-center gap-3 justify-center">
+                              <span className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">
+                                {"Ziel:"}
+                              </span>
+                              <div className="flex gap-2" aria-label="Ziel-Farbcodes">
+                                {targetColors.map((color, i) => (
+                                  <div
+                                    key={i}
+                                    className="w-8 h-2.5 rounded-full border border-zinc-600/50"
+                                    style={{ backgroundColor: color }}
+                                  />
+                                ))}
                               </div>
-                            )
-                          case "LASTCHAR":
-                            return (
-                              <div className="flex items-center gap-0.5 mt-2 mb-1">
-                                <span className="text-zinc-400 text-[10px] leading-none select-none">{"●●●●●●●"}</span>
-                                <span className="text-cyan-400 text-[10px] leading-none font-bold select-none">{"k"}</span>
-                              </div>
-                            )
-                          case "CHROMA":
-                            return (
-                              <div className="flex items-center gap-1 mt-2 mb-1">
-                                <div className="w-5 h-1.5 rounded-full bg-rose-500" />
-                                <div className="w-5 h-1.5 rounded-full bg-cyan-500" />
-                                <div className="w-5 h-1.5 rounded-full bg-amber-500" />
-                              </div>
-                            )
-                          default:
-                            return null
-                        }
-                      }
+                            </div>
+                          </div>
+                        )}
+                      </div>
 
-                      return (
-                        <button
-                          key={method.id}
-                          onClick={() => handleMethodClick(method.id)}
-                          aria-pressed={isPreferred || isHated}
-                          aria-label={`${method.name}${isPreferred ? " - Beste Wahl" : isHated ? " - Schlechteste Wahl" : ""}`}
-                          className={`relative min-h-[100px] p-4 rounded-2xl border-2 transition-all duration-300 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 ${
-                            isPreferred
-                              ? "bg-emerald-500/15 border-emerald-500/50 shadow-lg shadow-emerald-500/20 scale-[1.02]"
-                              : isHated
-                                ? "bg-red-500/15 border-red-500/50 shadow-lg shadow-red-500/20 scale-[1.02]"
-                                : "bg-zinc-800/50 border-zinc-700/50 hover:border-zinc-600 hover:bg-zinc-800/70"
-                          }`}
-                        >
-                          {isPreferred && (
-                            <span className="absolute -top-2 -right-2 bg-emerald-500 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-lg">
-                              BESTE
-                            </span>
-                          )}
-                          {isHated && (
-                            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-lg">
-                              SCHLECHTESTE
-                            </span>
-                          )}
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={
-                                isPreferred ? "text-emerald-400" : isHated ? "text-red-400" : "text-zinc-400"
-                              }
-                            >
-                              {method.icon}
-                            </span>
-                            <span
-                              className={`font-semibold text-sm ${
-                                isPreferred ? "text-emerald-300" : isHated ? "text-red-300" : "text-white"
+                      <p className="text-xs text-zinc-500 text-center">
+                        {"Drücken Sie Enter oder klicken Sie auf Absenden"}
+                      </p>
+
+                      <button
+                        onClick={submitTrial}
+                        className="w-full min-h-[48px] bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/30 hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
+                      >
+                        {"Absenden"}
+                      </button>
+                    </div>
+                  </AnimatedScreen>
+                )}
+
+                {/* Result Screen */}
+                {currentScreen === "result" && (
+                  <AnimatedScreen className="space-y-6 text-center">
+                    <div
+                      className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center ${
+                        resultSuccess
+                          ? "bg-emerald-500/20 text-emerald-400"
+                          : "bg-red-500/20 text-red-400"
+                      }`}
+                    >
+                      {resultSuccess ? (
+                        <CheckCircle2 className="w-10 h-10" />
+                      ) : (
+                        <XCircle className="w-10 h-10" />
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <h1 className="text-2xl font-bold text-white tracking-tight">
+                        {resultSuccess ? "Erfolgreich!" : "Nicht übereinstimmend"}
+                      </h1>
+                      <p className="text-zinc-400 leading-relaxed">
+                        {resultSuccess
+                          ? "Ihr Passwort wurde korrekt eingegeben."
+                          : "Das eingegebene Passwort stimmte nicht mit dem Ziel-Passwort überein."}
+                      </p>
+                    </div>
+                    <button
+                      onClick={nextTrial}
+                      className="w-full min-h-[48px] bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/30 hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 flex items-center justify-center gap-2"
+                    >
+                      {currentTrialIndex < 3 ? "Nächste Aufgabe" : "Zum Feedback"}
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  </AnimatedScreen>
+                )}
+
+                {/* Feedback Screen */}
+                {currentScreen === "feedback" && (
+                  <AnimatedScreen className="space-y-8">
+                    <div className="text-center space-y-2">
+                      <h1 className="text-2xl font-bold text-white tracking-tight">
+                        {"Ergebnisse & Feedback"}
+                      </h1>
+                      <p className="text-zinc-400 text-sm leading-relaxed">
+                        {"Bewerten Sie Ihre Erfahrung mit den verschiedenen Methoden"}
+                      </p>
+                    </div>
+
+                    {/* Ranking Section */}
+                    <div className="space-y-4">
+                      <div className="space-y-1">
+                        <h2 className="text-lg font-semibold text-white">{"Ranking"}</h2>
+                        <p className="text-sm text-zinc-400 leading-relaxed">
+                          {"Klicken Sie auf die "}
+                          <span className="text-emerald-400 font-semibold">{"beste"}</span>
+                          {" Methode (1. Klick) und dann auf die "}
+                          <span className="text-red-400 font-semibold">{"schlechteste"}</span>
+                          {" Methode (2. Klick)"}
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        {methods.map((method) => {
+                          const isPreferred = preferredMethod === method.id
+                          const isHated = hatedMethod === method.id
+
+                          const renderPreview = () => {
+                            switch (method.id) {
+                              case "STANDARD":
+                                return (
+                                  <div className="flex items-center gap-0.5 mt-2 mb-1">
+                                    {Array.from({ length: 8 }).map((_, i) => (
+                                      <span
+                                        key={i}
+                                        className="text-zinc-400 text-[10px] leading-none select-none"
+                                      >
+                                        {"\u25CF"}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )
+                              case "GROUPED":
+                                return (
+                                  <div className="flex items-center gap-0.5 mt-2 mb-1">
+                                    {["\u25CF\u25CF\u25CF\u25CF", " ", "\u25CF\u25CF\u25CF\u25CF", " ", "\u25CF\u25CF\u25CF\u25CF"].map(
+                                      (seg, i) =>
+                                        seg === " " ? (
+                                          <span key={i} className="w-1.5" />
+                                        ) : (
+                                          <span
+                                            key={i}
+                                            className="text-zinc-400 text-[10px] leading-none tracking-tight select-none"
+                                          >
+                                            {seg}
+                                          </span>
+                                        )
+                                    )}
+                                  </div>
+                                )
+                              case "LASTCHAR":
+                                return (
+                                  <div className="flex items-center gap-0.5 mt-2 mb-1">
+                                    <span className="text-zinc-400 text-[10px] leading-none select-none">
+                                      {"\u25CF\u25CF\u25CF\u25CF\u25CF\u25CF\u25CF"}
+                                    </span>
+                                    <span className="text-cyan-400 text-[10px] leading-none font-bold select-none">
+                                      {"k"}
+                                    </span>
+                                  </div>
+                                )
+                              case "CHROMA":
+                                return (
+                                  <div className="flex items-center gap-1 mt-2 mb-1">
+                                    <div className="w-5 h-1.5 rounded-full bg-rose-500" />
+                                    <div className="w-5 h-1.5 rounded-full bg-cyan-500" />
+                                    <div className="w-5 h-1.5 rounded-full bg-amber-500" />
+                                  </div>
+                                )
+                              default:
+                                return null
+                            }
+                          }
+
+                          return (
+                            <button
+                              key={method.id}
+                              onClick={() => handleMethodClick(method.id)}
+                              aria-pressed={isPreferred || isHated}
+                              aria-label={`${method.name}${isPreferred ? " - Beste Wahl" : isHated ? " - Schlechteste Wahl" : ""}`}
+                              className={`relative min-h-[100px] p-4 rounded-2xl border-2 transition-all duration-300 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 ${
+                                isPreferred
+                                  ? "bg-emerald-500/15 border-emerald-500/50 shadow-lg shadow-emerald-500/20 scale-[1.02]"
+                                  : isHated
+                                    ? "bg-red-500/15 border-red-500/50 shadow-lg shadow-red-500/20 scale-[1.02]"
+                                    : "bg-zinc-800/50 border-zinc-700/50 hover:border-zinc-600 hover:bg-zinc-800/70"
                               }`}
                             >
-                              {method.name}
-                            </span>
-                          </div>
-                          <div className="bg-zinc-900/60 rounded-lg px-2.5 py-1.5 mt-2 border border-zinc-700/30">
-                            {renderPreview()}
-                          </div>
-                          <div className="text-[11px] text-zinc-500 line-clamp-2 mt-1.5">{method.description}</div>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* Method Ratings */}
-                <div className="space-y-6">
-                  <h2 className="text-lg font-semibold text-white">Bewertungen pro Methode</h2>
-
-                  {Object.entries(methodRatings).map(([methodKey, ratings]) => {
-                    const methodNames: { [key: string]: string } = {
-                      STANDARD: "Standard",
-                      GROUPED: "Gruppierte Maskierung",
-                      LASTCHAR: "Letztes Zeichen sichtbar",
-                      CHROMA: "Farbfeedback",
-                    }
-                    const methodIcons: { [key: string]: React.ReactNode } = {
-                      STANDARD: <Lock className="w-4 h-4" />,
-                      GROUPED: <Eye className="w-4 h-4" />,
-                      LASTCHAR: <Shield className="w-4 h-4" />,
-                      CHROMA: <Sparkles className="w-4 h-4" />,
-                    }
-                    const questions = [
-                      { key: "visibility", label: "Ich wusste immer, ob meine Eingabe registriert wurde." },
-                      { key: "error_recovery", label: "Fehler zu korrigieren war einfach." },
-                      { key: "security", label: "Ich fühlte mich geschützt vor neugierigen Blicken." },
-                      { key: "distraction", label: "Die visuellen Effekte waren ablenkend." },
-                    ]
-
-                    return (
-                      <div
-                        key={methodKey}
-                        className="p-5 rounded-2xl bg-zinc-800/40 border border-zinc-700/50 space-y-5"
-                      >
-                        <div className="flex items-center gap-2 text-cyan-400">
-                          {methodIcons[methodKey]}
-                          <h3 className="font-semibold">{methodNames[methodKey]}</h3>
-                        </div>
-                        {questions.map((q) => (
-                          <StarRating
-                            key={q.key}
-                            label={q.label}
-                            value={ratings[q.key as keyof typeof ratings]}
-                            onChange={(val) =>
-                              setMethodRatings({
-                                ...methodRatings,
-                                [methodKey]: { ...ratings, [q.key]: val },
-                              })
-                            }
-                          />
-                        ))}
+                              {isPreferred && (
+                                <span className="absolute -top-2 -right-2 bg-emerald-500 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-lg">
+                                  {"BESTE"}
+                                </span>
+                              )}
+                              {isHated && (
+                                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-lg">
+                                  {"SCHLECHTESTE"}
+                                </span>
+                              )}
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={
+                                    isPreferred
+                                      ? "text-emerald-400"
+                                      : isHated
+                                        ? "text-red-400"
+                                        : "text-zinc-400"
+                                  }
+                                >
+                                  {method.icon}
+                                </span>
+                                <span
+                                  className={`font-semibold text-sm ${
+                                    isPreferred
+                                      ? "text-emerald-300"
+                                      : isHated
+                                        ? "text-red-300"
+                                        : "text-white"
+                                  }`}
+                                >
+                                  {method.name}
+                                </span>
+                              </div>
+                              <div className="bg-zinc-900/60 rounded-lg px-2.5 py-1.5 mt-2 border border-zinc-700/30">
+                                {renderPreview()}
+                              </div>
+                              <div className="text-[11px] text-zinc-500 line-clamp-2 mt-1.5">
+                                {method.description}
+                              </div>
+                            </button>
+                          )
+                        })}
                       </div>
-                    )
-                  })}
-                </div>
+                    </div>
 
-                {/* Open Feedback */}
-                <div className="space-y-3">
-                  <label htmlFor="open-feedback" className="block text-sm text-zinc-300 font-medium">
-                    Wenn du eine Sache an diesem Eingabefeld ändern könntest, um es intuitiver oder sicherer zu machen – was wäre das?
-                  </label>
-                  <textarea
-                    id="open-feedback"
-                    rows={3}
-                    value={openFeedback}
-                    onChange={(e) => setOpenFeedback(e.target.value)}
-                    className="w-full bg-zinc-900/80 border border-zinc-700/50 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 transition-all resize-none text-sm leading-relaxed"
-                    placeholder="Teilen Sie Ihre Gedanken..."
-                  />
-                </div>
+                    {/* Method Ratings */}
+                    <div className="space-y-6">
+                      <h2 className="text-lg font-semibold text-white">{"Bewertungen pro Methode"}</h2>
 
-                <button
-                  onClick={downloadResults}
-                  disabled={!canFinish}
-                  className="w-full min-h-[48px] bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:from-zinc-800 disabled:to-zinc-800 disabled:text-zinc-600 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 disabled:shadow-none hover:scale-[1.02] active:scale-[0.98] disabled:scale-100 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
-                >
-                  Abschließen
-                </button>
-                {!canFinish && (
-                  <p className="text-xs text-zinc-500 text-center">
-                    Bitte wählen Sie beste/schlechteste Methode und bewerten Sie alle Aussagen
-                  </p>
+                      {Object.entries(methodRatings).map(([methodKey, ratings]) => {
+                        const methodNames: { [key: string]: string } = {
+                          STANDARD: "Standard",
+                          GROUPED: "Gruppierte Maskierung",
+                          LASTCHAR: "Letztes Zeichen sichtbar",
+                          CHROMA: "Farbfeedback",
+                        }
+                        const methodIcons: { [key: string]: React.ReactNode } = {
+                          STANDARD: <Lock className="w-4 h-4" />,
+                          GROUPED: <Eye className="w-4 h-4" />,
+                          LASTCHAR: <Shield className="w-4 h-4" />,
+                          CHROMA: <Sparkles className="w-4 h-4" />,
+                        }
+                        const questions = [
+                          {
+                            key: "visibility",
+                            label: "Ich wusste immer, ob meine Eingabe registriert wurde.",
+                          },
+                          { key: "error_recovery", label: "Fehler zu korrigieren war einfach." },
+                          {
+                            key: "security",
+                            label: "Ich fühlte mich geschützt vor neugierigen Blicken.",
+                          },
+                          {
+                            key: "distraction",
+                            label: "Die visuellen Effekte waren ablenkend.",
+                          },
+                        ]
+
+                        return (
+                          <div
+                            key={methodKey}
+                            className="p-5 rounded-2xl bg-zinc-800/40 border border-zinc-700/50 space-y-5"
+                          >
+                            <div className="flex items-center gap-2 text-cyan-400">
+                              {methodIcons[methodKey]}
+                              <h3 className="font-semibold">{methodNames[methodKey]}</h3>
+                            </div>
+                            {questions.map((q) => (
+                              <StarRating
+                                key={q.key}
+                                label={q.label}
+                                value={ratings[q.key as keyof typeof ratings]}
+                                onChange={(val) =>
+                                  setMethodRatings({
+                                    ...methodRatings,
+                                    [methodKey]: { ...ratings, [q.key]: val },
+                                  })
+                                }
+                              />
+                            ))}
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* Open Feedback */}
+                    <div className="space-y-3">
+                      <label htmlFor="open-feedback" className="block text-sm text-zinc-300 font-medium">
+                        {
+                          "Wenn du eine Sache an diesem Eingabefeld ändern könntest, um es intuitiver oder sicherer zu machen – was wäre das?"
+                        }
+                      </label>
+                      <textarea
+                        id="open-feedback"
+                        rows={3}
+                        value={openFeedback}
+                        onChange={(e) => setOpenFeedback(e.target.value)}
+                        className="w-full bg-zinc-900/80 border border-zinc-700/50 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 transition-all resize-none text-sm leading-relaxed"
+                        placeholder="Teilen Sie Ihre Gedanken..."
+                      />
+                    </div>
+
+                    <button
+                      onClick={downloadResults}
+                      disabled={!canFinish}
+                      className="w-full min-h-[48px] bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:from-zinc-800 disabled:to-zinc-800 disabled:text-zinc-600 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 disabled:shadow-none hover:scale-[1.02] active:scale-[0.98] disabled:scale-100 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
+                    >
+                      {"Abschließen"}
+                    </button>
+                    {!canFinish && (
+                      <p className="text-xs text-zinc-500 text-center">
+                        {
+                          "Bitte wählen Sie beste/schlechteste Methode und bewerten Sie alle Aussagen"
+                        }
+                      </p>
+                    )}
+                  </AnimatedScreen>
                 )}
-              </AnimatedScreen>
-            )}
 
-            {/* Thank You Screen */}
-            {currentScreen === "thanks" && (
-              <AnimatedScreen className="space-y-6 text-center py-8">
-                <div className="w-20 h-20 mx-auto rounded-full bg-emerald-500/20 flex items-center justify-center">
-                  <CheckCircle2 className="w-10 h-10 text-emerald-400" />
-                </div>
-                <div className="space-y-2">
-                  <h1 className="text-2xl font-bold text-white tracking-tight">Vielen Dank!</h1>
-                  <p className="text-zinc-400 leading-relaxed">
-                    Ihre Studiendaten wurden gespeichert. Vielen Dank für Ihre Teilnahme an dieser Forschung!
-                  </p>
-                </div>
-              </AnimatedScreen>
-            )}
+                {/* Thank You Screen */}
+                {currentScreen === "thanks" && (
+                  <AnimatedScreen className="space-y-6 text-center py-8">
+                    <div className="w-20 h-20 mx-auto rounded-full bg-emerald-500/20 flex items-center justify-center">
+                      <CheckCircle2 className="w-10 h-10 text-emerald-400" />
+                    </div>
+                    <div className="space-y-2">
+                      <h1 className="text-2xl font-bold text-white tracking-tight">{"Vielen Dank!"}</h1>
+                      <p className="text-zinc-400 leading-relaxed">
+                        {
+                          "Ihre Studiendaten wurden heruntergeladen. Vielen Dank für Ihre Teilnahme an dieser Forschung!"
+                        }
+                      </p>
+                    </div>
+                  </AnimatedScreen>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
-      </> 
-     )}
+        </>
+      )}
     </div>
   )
 }

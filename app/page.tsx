@@ -3,6 +3,15 @@
 import type React from "react"
 import { useState, useRef, useEffect, useCallback } from "react"
 import { CheckCircle2, XCircle, ChevronRight, Star, Lock, Eye, Shield, Sparkles, Check, Copy } from "lucide-react"
+import { createClient } from "@supabase/supabase-js"
+
+// ── Lazy Supabase client (only created when env vars are present) ──
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) return null
+  return createClient(url, key)
+}
 
 // ── Pool of target passwords (exactly 10 chars, 1 uppercase, 1 number, 1 special) ──
 const TARGET_PASSWORD_POOL = [
@@ -211,6 +220,8 @@ export default function PasswordStudy() {
   const [deviceType, setDeviceType] = useState<"mobile" | "desktop">("desktop")
   const [hasCompletedStudy, setHasCompletedStudy] = useState(false)
   const [checkingCompletion, setCheckingCompletion] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const trialInputRef = useRef<HTMLInputElement | HTMLDivElement>(null)
   const prevTrialValueRef = useRef("")
@@ -510,29 +521,71 @@ export default function PasswordStudy() {
     }
   }
 
-  // Download results (local-only, no Supabase)
-  const downloadResults = () => {
+  // Send results to Supabase (with JSON download fallback)
+  const sendDataToSupabase = async () => {
+    setIsSubmitting(true)
+    setSubmitError(null)
+
     const finalData = {
       device_type: deviceType,
-      trials: studyData.trials,
+      start_time: studyData.startTime ? new Date(studyData.startTime).toISOString() : null,
+      end_time: new Date().toISOString(),
+      trials: studyData.trials.map((t) => ({
+        method: t.method,
+        target_password: t.targetPassword,
+        typed_password: t.typedPassword,
+        success: t.success,
+        duration_ms: t.durationMs,
+        time_to_first_key: t.timeToFirstKey,
+        average_keystroke_interval: t.averageKeystrokeInterval,
+        backspace_count: t.backspaceCount,
+        overflow_detected: t.overflowDetected,
+      })),
       survey: {
         preferred_method: preferredMethod,
         hated_method: hatedMethod,
         method_ratings: methodRatings,
         open_feedback: openFeedback,
       },
-      endTime: Date.now(),
     }
 
-    // Download as JSON file
-    const blob = new Blob([JSON.stringify(finalData, null, 2)], { type: "application/json" })
+    const supabase = getSupabaseClient()
+
+    if (supabase) {
+      try {
+        const { error } = await supabase.from("study_results").insert([finalData])
+
+        if (error) {
+          console.error("Supabase Error:", error)
+          setSubmitError("Datenbankfehler. Die Ergebnisse wurden als Datei heruntergeladen.")
+          downloadResultsAsFile(finalData)
+        } else {
+          localStorage.setItem("hasCompletedStudy", "true")
+          setCurrentScreen("thanks")
+        }
+      } catch (err) {
+        console.error("Supabase Error:", err)
+        setSubmitError("Verbindungsfehler. Die Ergebnisse wurden als Datei heruntergeladen.")
+        downloadResultsAsFile(finalData)
+      }
+    } else {
+      console.error("Supabase Error: NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY not set. Falling back to file download.")
+      setSubmitError("Datenbank nicht konfiguriert. Die Ergebnisse wurden als Datei heruntergeladen.")
+      downloadResultsAsFile(finalData)
+    }
+
+    setIsSubmitting(false)
+  }
+
+  // Fallback: download results as JSON file
+  const downloadResultsAsFile = (data: Record<string, unknown>) => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
     a.download = `study-results-${Date.now()}.json`
     a.click()
     URL.revokeObjectURL(url)
-
     localStorage.setItem("hasCompletedStudy", "true")
     setCurrentScreen("thanks")
   }
@@ -1273,12 +1326,17 @@ export default function PasswordStudy() {
                     </div>
 
                     <button
-                      onClick={downloadResults}
-                      disabled={!canFinish}
+                      onClick={sendDataToSupabase}
+                      disabled={!canFinish || isSubmitting}
                       className="w-full min-h-[48px] bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:from-zinc-800 disabled:to-zinc-800 disabled:text-zinc-600 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 disabled:shadow-none hover:scale-[1.02] active:scale-[0.98] disabled:scale-100 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
                     >
-                      {"Abschließen"}
+                      {isSubmitting ? "Wird gesendet..." : "Abschließen"}
                     </button>
+                    {submitError && (
+                      <p className="text-xs text-amber-400 text-center">
+                        {submitError}
+                      </p>
+                    )}
                     {!canFinish && (
                       <p className="text-xs text-zinc-500 text-center">
                         {
@@ -1299,7 +1357,7 @@ export default function PasswordStudy() {
                       <h1 className="text-2xl font-bold text-white tracking-tight">{"Vielen Dank!"}</h1>
                       <p className="text-zinc-400 leading-relaxed">
                         {
-                          "Ihre Studiendaten wurden heruntergeladen. Vielen Dank für Ihre Teilnahme an dieser Forschung!"
+                          "Ihre Studiendaten wurden erfolgreich übermittelt. Vielen Dank für Ihre Teilnahme an dieser Forschung!"
                         }
                       </p>
                     </div>

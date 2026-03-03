@@ -49,6 +49,10 @@ interface TrialData {
   overflowDetected: boolean
   targetPassword: string
   typedPassword: string
+  levenshteinDistance: number
+  totalResets: number
+  bulkDeletions: number
+  kspc: number
 }
 
 interface StudyData {
@@ -95,6 +99,25 @@ const methods: Method[] = [
     icon: <Sparkles className="w-5 h-5" />,
   },
 ]
+
+// ── Levenshtein distance (standard DP implementation) ──
+function calculateLevenshtein(a: string, b: string): number {
+  const m = a.length
+  const n = b.length
+  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0))
+  for (let i = 0; i <= m; i++) dp[i][0] = i
+  for (let j = 0; j <= n; j++) dp[0][j] = j
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (a[i - 1] === b[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1]
+      } else {
+        dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1])
+      }
+    }
+  }
+  return dp[m][n]
+}
 
 // Animation wrapper component
 function AnimatedScreen({ children, className = "" }: { children: React.ReactNode; className?: string }) {
@@ -191,6 +214,8 @@ export default function PasswordStudy() {
   const [keystrokeTimestamps, setKeystrokeTimestamps] = useState<number[]>([])
   const [backspaceCount, setBackspaceCount] = useState(0)
   const [overflowDetected, setOverflowDetected] = useState(false)
+  const [totalResets, setTotalResets] = useState(0)
+  const [bulkDeletions, setBulkDeletions] = useState(0)
   const [resultSuccess, setResultSuccess] = useState(false)
   const [lastCharTimeout, setLastCharTimeout] = useState<NodeJS.Timeout | null>(null)
   const [groupedRealValue, setGroupedRealValue] = useState("")
@@ -290,6 +315,8 @@ export default function PasswordStudy() {
     setKeystrokeTimestamps([])
     setBackspaceCount(0)
     setOverflowDetected(false)
+    setTotalResets(0)
+    setBulkDeletions(0)
     setGroupedRealValue("")
     setGroupedCursorPos(0)
     setLastCharDisplay("")
@@ -354,6 +381,16 @@ export default function PasswordStudy() {
       setGroupedRealValue(newValue)
       setGroupedCursorPos(newCursor)
       renderGroupedDisplay(newValue, newCursor)
+
+      // Detect bulk deletions / total resets for GROUPED
+      const prevLen = prevTrialValueRef.current.length
+      const newLen = newValue.length
+      if (newLen === 0 && prevLen > 0) {
+        setTotalResets((r) => r + 1)
+      } else if (prevLen - newLen > 1) {
+        setBulkDeletions((b) => b + 1)
+      }
+      prevTrialValueRef.current = newValue
     }
   }
 
@@ -391,6 +428,13 @@ export default function PasswordStudy() {
 
       prevTrialValueRef.current = displayValue
 
+      // Detect bulk deletions / total resets for LASTCHAR
+      if (currentLength === 0 && prevLength > 0) {
+        setTotalResets((r) => r + 1)
+      } else if (prevLength - currentLength > 1) {
+        setBulkDeletions((b) => b + 1)
+      }
+
       if (trialValue.length > currentTargetPassword.length) {
         setOverflowDetected(true)
       }
@@ -401,6 +445,16 @@ export default function PasswordStudy() {
       // For STANDARD and CHROMA methods
       const value = e.target.value
       setTrialValue(value)
+
+      // Detect bulk deletions / total resets for STANDARD & CHROMA
+      const prevLen = prevTrialValueRef.current.length
+      const newLen = value.length
+      if (newLen === 0 && prevLen > 0) {
+        setTotalResets((r) => r + 1)
+      } else if (prevLen - newLen > 1) {
+        setBulkDeletions((b) => b + 1)
+      }
+      prevTrialValueRef.current = value
 
       if (value.length > currentTargetPassword.length) {
         setOverflowDetected(true)
@@ -481,6 +535,12 @@ export default function PasswordStudy() {
       overflowDetected,
       targetPassword: currentTargetPassword,
       typedPassword: actualValue,
+      levenshteinDistance: calculateLevenshtein(currentTargetPassword, actualValue),
+      totalResets,
+      bulkDeletions,
+      kspc: currentTargetPassword.length > 0
+        ? parseFloat((keystrokeTimestamps.length / currentTargetPassword.length).toFixed(2))
+        : 0,
     }
 
     setStudyData({ ...studyData, trials: [...studyData.trials, trialData] })
@@ -835,6 +895,16 @@ export default function PasswordStudy() {
                                 setGroupedRealValue(newValue)
                                 setGroupedCursorPos(newCursor)
                                 renderGroupedDisplay(newValue, newCursor)
+
+                                // Detect bulk deletions / total resets for GROUPED (mobile)
+                                const prevLen = prevTrialValueRef.current.length
+                                const newLen = newValue.length
+                                if (newLen === 0 && prevLen > 0) {
+                                  setTotalResets((r) => r + 1)
+                                } else if (prevLen - newLen > 1) {
+                                  setBulkDeletions((b) => b + 1)
+                                }
+                                prevTrialValueRef.current = newValue
 
                                 const target = e.target as HTMLInputElement
                                 setTimeout(() => {

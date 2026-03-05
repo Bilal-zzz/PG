@@ -395,70 +395,53 @@ export default function PasswordStudy() {
   }
 
   const handleTrialChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (currentMethod?.id === "LASTCHAR") {
-      const displayValue = e.target.value
+    // GROUPED uses onBeforeInput, ignore here
+    if (currentMethod?.id === "GROUPED") return
 
-      // Clear any existing timeout
+    const displayValue = e.target.value
+    const prevLength = prevTrialValueRef.current.length
+    const currentLength = displayValue.length
+
+    // --- Advanced Metrics Tracking ---
+    if (currentLength === 0 && prevLength > 0) {
+      setTotalResets(prev => prev + 1)
+    } else if (prevLength - currentLength > 1) {
+      setBulkDeletions(prev => prev + 1)
+    }
+
+    let newValue = trialValue
+    if (currentLength < prevLength) {
+      // Deletion
+      newValue = trialValue.slice(0, currentLength)
+    } else if (currentLength > prevLength) {
+      // Addition
+      const addedChars = displayValue.slice(prevLength)
+      newValue = trialValue + addedChars
+    }
+
+    setTrialValue(newValue)
+    prevTrialValueRef.current = displayValue
+
+    // Handle LASTCHAR specific 400ms timeout
+    if (currentMethod?.id === "LASTCHAR") {
       if (lastCharTimeout) clearTimeout(lastCharTimeout)
 
-      // Determine if we're adding or removing characters
-      const prevLength = prevTrialValueRef.current.length
-      const currentLength = displayValue.length
-
-      if (currentLength < prevLength) {
-        // Deletion - remove from actual value
-        const newValue = trialValue.slice(0, -1)
-        setTrialValue(newValue)
-        setLastCharDisplay("\u2022".repeat(newValue.length))
-      } else if (currentLength > prevLength) {
-        // Addition - get the new character and add to actual value
-        const newChar = displayValue.slice(-1)
-        const newValue = trialValue + newChar
-        setTrialValue(newValue)
-
-        // Show last character briefly
-        const masked = "\u2022".repeat(newValue.length - 1) + newChar
+      if (currentLength > prevLength) {
+        const addedChars = displayValue.slice(prevLength)
+        const masked = "\u2022".repeat(newValue.length - 1) + addedChars.slice(-1)
         setLastCharDisplay(masked)
 
         const timeout = setTimeout(() => {
           setLastCharDisplay("\u2022".repeat(newValue.length))
         }, 400)
         setLastCharTimeout(timeout)
+      } else {
+        setLastCharDisplay("\u2022".repeat(newValue.length))
       }
+    }
 
-      prevTrialValueRef.current = displayValue
-
-      // Detect bulk deletions / total resets for LASTCHAR
-      if (currentLength === 0 && prevLength > 0) {
-        setTotalResets((r) => r + 1)
-      } else if (prevLength - currentLength > 1) {
-        setBulkDeletions((b) => b + 1)
-      }
-
-      if (trialValue.length > currentTargetPassword.length) {
-        setOverflowDetected(true)
-      }
-    } else if (currentMethod?.id === "GROUPED") {
-      // GROUPED is handled via keydown, not onChange
-      return
-    } else {
-      // For STANDARD and CHROMA methods
-      const value = e.target.value
-      setTrialValue(value)
-
-      // Detect bulk deletions / total resets for STANDARD & CHROMA
-      const prevLen = prevTrialValueRef.current.length
-      const newLen = value.length
-      if (newLen === 0 && prevLen > 0) {
-        setTotalResets((r) => r + 1)
-      } else if (prevLen - newLen > 1) {
-        setBulkDeletions((b) => b + 1)
-      }
-      prevTrialValueRef.current = value
-
-      if (value.length > currentTargetPassword.length) {
-        setOverflowDetected(true)
-      }
+    if (newValue.length > currentTargetPassword.length) {
+      setOverflowDetected(true)
     }
   }
 
@@ -827,10 +810,10 @@ export default function PasswordStudy() {
         {currentMethod.id === "STANDARD" && (
           <input
             ref={trialInputRef}
-            type="password"
+            type="text"
             id="trial-input-standard"
             name="study_field_std_1"
-            value={trialValue}
+            value={"\u2022".repeat(trialValue.length)}
             onChange={handleTrialChange}
             onKeyDown={handleTrialKeydown}
             className={inputBaseClasses}
@@ -1032,10 +1015,10 @@ export default function PasswordStudy() {
                             <div className="flex items-center justify-center gap-3">
                             <input
                               ref={trialInputRef}
-                              type="password"
+                              type="text"
                               id="trial-input-chroma"
                               name="study_field_chr_4"
-                              value={trialValue}
+                              value={"\u2022".repeat(trialValue.length)}
                               onChange={handleTrialChange}
                               onKeyDown={handleTrialKeydown}
                               className={inputBaseClasses}

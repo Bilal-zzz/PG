@@ -813,39 +813,25 @@ export default function PasswordStudy() {
                       </label>
 
                       <div className="flex justify-center items-center">
-        {currentMethod.id === "STANDARD" && (
-                          <div className="relative w-[140px] bg-zinc-900/80 border border-zinc-700/50 rounded-xl focus-within:ring-2 focus-within:ring-cyan-500 focus-within:ring-offset-2 focus-within:ring-offset-zinc-900 transition-all duration-200">
-                            
-                            {/* Die strahlend weißen Punkte im Hintergrund */}
-                            <div className="absolute inset-0 pointer-events-none px-5 flex items-center z-0 text-white text-2xl font-mono overflow-hidden">
-                              {trialValue.length > 0 ? (
-                                <span className="tracking-widest">{"\u2022".repeat(trialValue.length)}</span>
-                              ) : (
-                                <span className="text-zinc-600">...</span>
-                              )}
-                            </div>
-
-                            {/* Das echte Eingabefeld (komplett durchsichtig) */}
-                            <input
-                              ref={trialInputRef}
-                              type="text"
-                              id="trial-input-standard"
-                              name="study_field_std_1"
-                              value={trialValue}
-                              onChange={handleTrialChange}
-                              onKeyDown={handleTrialKeydown}
-                              className="w-full bg-transparent px-5 py-4 border-none outline-none focus:outline-none focus:ring-0 text-transparent caret-white font-mono text-2xl relative z-10"
-                              style={{ color: "transparent", WebkitTextFillColor: "transparent" }}
-                              placeholder=""
-                              autoComplete="off"
-                              autoCorrect="off"
-                              autoCapitalize="off"
-                              spellCheck="false"
-                              data-lpignore="true"
-                              data-form-type="other"
-                              {...antiCheatProps}
-                            />
-                          </div>
+                      {currentMethod.id === "STANDARD" && (
+                          <input
+                            ref={trialInputRef}
+                            type="text"
+                            id="trial-input-standard"
+                            name="study_field_std_1"
+                            value={"\u2022".repeat(trialValue.length)}
+                            onChange={handleTrialChange}
+                            onKeyDown={handleTrialKeydown}
+                            className={inputBaseClasses}
+                            placeholder="..."
+                            autoComplete="off"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck="false"
+                            data-lpignore="true"
+                            data-form-type="other"
+                            {...antiCheatProps}
+                          />
                         )}
 
                         {currentMethod.id === "GROUPED" && (

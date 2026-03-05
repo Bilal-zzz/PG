@@ -824,17 +824,16 @@ export default function PasswordStudy() {
                       </label>
 
                       <div className="flex justify-center items-center">
-                        {currentMethod.id === "STANDARD" && (
-                          <input
-                            ref={trialInputRef}
-                            type="text"
-                            style={{ WebkitTextSecurity: "disc" }}
-                            id="trial-input-standard"
-                            name="study_field_std_1"
-                            value={trialValue}
-                            onChange={handleTrialChange}
-                            onKeyDown={handleTrialKeydown}
-                            className={inputBaseClasses}
+        {currentMethod.id === "STANDARD" && (
+          <input
+            ref={trialInputRef}
+            type="password"
+            id="trial-input-standard"
+            name="study_field_std_1"
+            value={trialValue}
+            onChange={handleTrialChange}
+            onKeyDown={handleTrialKeydown}
+            className={inputBaseClasses}
                             placeholder="..."
                             autoComplete="off"
                             autoCorrect="off"
@@ -1031,16 +1030,15 @@ export default function PasswordStudy() {
                         {currentMethod.id === "CHROMA" && (
                           <div className="space-y-4 w-full flex flex-col items-center">
                             <div className="flex items-center justify-center gap-3">
-                              <input
-                                ref={trialInputRef}
-                                type="text"
-                                style={{ WebkitTextSecurity: "disc" }}
-                                id="trial-input-chroma"
-                                name="study_field_chr_4"
-                                value={trialValue}
-                                onChange={handleTrialChange}
-                                onKeyDown={handleTrialKeydown}
-                                className={inputBaseClasses}
+                            <input
+                              ref={trialInputRef}
+                              type="password"
+                              id="trial-input-chroma"
+                              name="study_field_chr_4"
+                              value={trialValue}
+                              onChange={handleTrialChange}
+                              onKeyDown={handleTrialKeydown}
+                              className={inputBaseClasses}
                                 placeholder="..."
                                 autoComplete="off"
                                 autoCorrect="off"

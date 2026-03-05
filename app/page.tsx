@@ -409,22 +409,20 @@ export default function PasswordStudy() {
       setBulkDeletions(prev => prev + 1)
     }
 
-    let newValue = trialValue
-    if (currentLength < prevLength) {
-      // Deletion
-      newValue = trialValue.slice(0, currentLength)
-    } else if (currentLength > prevLength) {
-      // Addition
-      const addedChars = displayValue.slice(prevLength)
-      newValue = trialValue + addedChars
-    }
-
-    setTrialValue(newValue)
-    prevTrialValueRef.current = displayValue
-
-    // Handle LASTCHAR specific 400ms timeout
     if (currentMethod?.id === "LASTCHAR") {
+      // LASTCHAR: displayValue contains bullets, so we length-diff to extract real chars
       if (lastCharTimeout) clearTimeout(lastCharTimeout)
+
+      let newValue = trialValue
+      if (currentLength < prevLength) {
+        newValue = trialValue.slice(0, currentLength)
+      } else if (currentLength > prevLength) {
+        const addedChars = displayValue.slice(prevLength)
+        newValue = trialValue + addedChars
+      }
+
+      setTrialValue(newValue)
+      prevTrialValueRef.current = displayValue
 
       if (currentLength > prevLength) {
         const addedChars = displayValue.slice(prevLength)
@@ -438,10 +436,18 @@ export default function PasswordStudy() {
       } else {
         setLastCharDisplay("\u2022".repeat(newValue.length))
       }
-    }
 
-    if (newValue.length > currentTargetPassword.length) {
-      setOverflowDetected(true)
+      if (newValue.length > currentTargetPassword.length) {
+        setOverflowDetected(true)
+      }
+    } else {
+      // STANDARD & CHROMA: value is the real plaintext (rendered transparent via CSS)
+      setTrialValue(displayValue)
+      prevTrialValueRef.current = displayValue
+
+      if (displayValue.length > currentTargetPassword.length) {
+        setOverflowDetected(true)
+      }
     }
   }
 
@@ -808,25 +814,32 @@ export default function PasswordStudy() {
 
                       <div className="flex justify-center items-center">
         {currentMethod.id === "STANDARD" && (
-          <input
-            ref={trialInputRef}
-            type="text"
-            id="trial-input-standard"
-            name="study_field_std_1"
-            value={"\u2022".repeat(trialValue.length)}
-            onChange={handleTrialChange}
-            onKeyDown={handleTrialKeydown}
-            className={inputBaseClasses}
-                            placeholder="..."
-                            autoComplete="off"
-                            autoCorrect="off"
-                            autoCapitalize="off"
-                            spellCheck="false"
-                            data-lpignore="true"
-                            data-form-type="other"
-                            {...antiCheatProps}
-                          />
-                        )}
+          <div className="relative w-[140px]">
+            {/* Foreground actual input (Transparent text, visible cursor) */}
+            <input
+              ref={trialInputRef}
+              type="text"
+              id="trial-input-standard"
+              name="study_field_std_1"
+              value={trialValue}
+              onChange={handleTrialChange}
+              onKeyDown={handleTrialKeydown}
+              className={`${inputBaseClasses} w-full relative z-10 !text-transparent caret-white`}
+              placeholder=""
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
+              data-lpignore="true"
+              {...antiCheatProps}
+            />
+            {/* Background visual dots */}
+            <div className="absolute inset-0 pointer-events-none px-5 flex items-center text-white text-2xl font-mono overflow-hidden">
+              {"\u2022".repeat(trialValue.length)}
+              {!trialValue && <span className="text-zinc-600">...</span>}
+            </div>
+          </div>
+        )}
 
                         {currentMethod.id === "GROUPED" && (
                           <div className="relative">

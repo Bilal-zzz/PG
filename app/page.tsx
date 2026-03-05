@@ -5,10 +5,15 @@ import { useState, useRef, useEffect, useCallback } from "react"
 import { CheckCircle2, XCircle, ChevronRight, Star, Lock, Eye, Shield, Sparkles, Check, Copy } from "lucide-react"
 import { createClient } from "@supabase/supabase-js"
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) {
+    console.warn("Supabase environment variables are not set. Data will not be saved.")
+    return null
+  }
+  return createClient(url, key)
+}
 
 // ── Pool of target passwords (exactly 10 chars, 1 uppercase, 1 number, 1 special) ──
 const TARGET_PASSWORD_POOL = [
@@ -580,15 +585,21 @@ export default function PasswordStudy() {
     }
 
     try {
-      const { error } = await supabase.from("UserstudyDaten").insert({
-        data: finalData,
-        created_at: new Date().toISOString(),
-      })
+      const supabase = getSupabase()
+      if (supabase) {
+        const { error } = await supabase.from("UserstudyDaten").insert({
+          data: finalData,
+          created_at: new Date().toISOString(),
+        })
 
-      if (error) {
-        console.error("Supabase error:", error)
-        alert("Fehler beim Speichern. Bitte überprüfen Sie Ihre Internetverbindung.")
+        if (error) {
+          console.error("Supabase error:", error)
+          alert("Fehler beim Speichern. Bitte überprüfen Sie Ihre Internetverbindung.")
+        } else {
+          localStorage.setItem("hasCompletedStudy", "true")
+        }
       } else {
+        console.warn("Supabase not configured. Skipping data save.")
         localStorage.setItem("hasCompletedStudy", "true")
       }
     } catch (err) {

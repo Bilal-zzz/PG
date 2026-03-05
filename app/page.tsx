@@ -404,34 +404,51 @@ export default function PasswordStudy() {
     if (currentMethod?.id === "GROUPED") return
 
     const displayValue = e.target.value
+    // prevTrialValueRef tracks the real (non-bullet) value length
     const prevLength = prevTrialValueRef.current.length
     const currentLength = displayValue.length
 
+    // --- Decode the real value from bullet-masked input ---
+    // Because STANDARD, CHROMA, and LASTCHAR all render bullets as the input value,
+    // e.target.value is bullets + any newly typed chars. We diff lengths to extract
+    // only the new real characters and apply them to the hidden trialValue state.
+    let newValue = trialValue
+    if (currentLength > prevLength) {
+      // Characters were added: extract only the new (non-bullet) chars from the end
+      const addedChars = displayValue.slice(prevLength)
+      newValue = trialValue + addedChars
+    } else if (currentLength < prevLength) {
+      // Characters were deleted: trim trialValue to match the new length
+      newValue = trialValue.slice(0, currentLength)
+    }
+    // else: same length, no change
+
+    // Safety: strip any stray bullet characters that may have leaked in
+    newValue = newValue.replace(/\u2022/g, "")
+
     // --- Advanced Metrics Tracking ---
-    if (currentLength === 0 && prevLength > 0) {
+    if (newValue.length === 0 && prevLength > 0) {
       setTotalResets(prev => prev + 1)
     } else if (prevLength - currentLength > 1) {
       setBulkDeletions(prev => prev + 1)
     }
 
+    // Update the real hidden value
+    setTrialValue(newValue)
+    // Track the display length for next diff (matches bullet count)
+    prevTrialValueRef.current = "\u2022".repeat(newValue.length)
+
+    if (newValue.length > currentTargetPassword.length) {
+      setOverflowDetected(true)
+    }
+
+    // --- LASTCHAR-specific: show the last typed character briefly ---
     if (currentMethod?.id === "LASTCHAR") {
-      // LASTCHAR: displayValue contains bullets, so we length-diff to extract real chars
       if (lastCharTimeout) clearTimeout(lastCharTimeout)
 
-      let newValue = trialValue
-      if (currentLength < prevLength) {
-        newValue = trialValue.slice(0, currentLength)
-      } else if (currentLength > prevLength) {
-        const addedChars = displayValue.slice(prevLength)
-        newValue = trialValue + addedChars
-      }
-
-      setTrialValue(newValue)
-      prevTrialValueRef.current = displayValue
-
-      if (currentLength > prevLength) {
-        const addedChars = displayValue.slice(prevLength)
-        const masked = "\u2022".repeat(newValue.length - 1) + addedChars.slice(-1)
+      if (currentLength > prevLength && newValue.length > 0) {
+        const lastReal = newValue.slice(-1)
+        const masked = "\u2022".repeat(newValue.length - 1) + lastReal
         setLastCharDisplay(masked)
 
         const timeout = setTimeout(() => {
@@ -440,18 +457,6 @@ export default function PasswordStudy() {
         setLastCharTimeout(timeout)
       } else {
         setLastCharDisplay("\u2022".repeat(newValue.length))
-      }
-
-      if (newValue.length > currentTargetPassword.length) {
-        setOverflowDetected(true)
-      }
-    } else {
-      // STANDARD & CHROMA: value is the real plaintext (rendered transparent via CSS)
-      setTrialValue(displayValue)
-      prevTrialValueRef.current = displayValue
-
-      if (displayValue.length > currentTargetPassword.length) {
-        setOverflowDetected(true)
       }
     }
   }
